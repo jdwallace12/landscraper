@@ -15,8 +15,7 @@ export class Skiers {
 
   /** Drop a new skier at world position (wx, wz) */
   spawn(wx, wz) {
-    const { gx, gz } = this.terrain.worldToGrid(wx, wz);
-    const h = this.terrain.getHeight(gx, gz);
+    const h = this.terrain.getInterpolatedHeight(wx, wz);
 
     const mesh = this._buildSkier();
     mesh.position.set(wx, h + 0.15, wz);
@@ -25,7 +24,7 @@ export class Skiers {
     // Trail line (ski tracks)
     const trailMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.9 });
     const trailGeo = new THREE.BufferGeometry();
-    const trailPositions = new Float32Array(600 * 3); // max 600 trail points
+    const trailPositions = new Float32Array(2000 * 3); // max 2000 trail points
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
     trailGeo.setDrawRange(0, 0);
     const trail = new THREE.Line(trailGeo, trailMat);
@@ -49,8 +48,8 @@ export class Skiers {
 
   /** Update all skiers — call each frame with deltaTime, seaLevel, and chairlifts ref */
   update(dt, seaLevel, chairlifts) {
-    const gravity = 4.0;
-    const friction = 0.95;
+    const gravity = 10.0;
+    const friction = 0.97;
     const minSpeed = 0.001;
     const res = this.terrain.resolution;
     const size = this.terrain.size;
@@ -178,8 +177,8 @@ export class Skiers {
         const px = -s.vz / s.speed;
         const pz = s.vx / s.speed;
         // Wider oscillation
-        const carveStrength = Math.min(s.speed * 0.6, 2.5); 
-        const carveForce = Math.sin(s.timeAlive * 0.6) * carveStrength;
+        const carveStrength = Math.min(s.speed * 1.0, 4.0); 
+        const carveForce = Math.sin(s.timeAlive * 3.0) * carveStrength;
         carveX = px * carveForce;
         carveZ = pz * carveForce;
       }
@@ -195,7 +194,7 @@ export class Skiers {
         s.mesh.visible = false;
         continue;
       }
-      const newH = this.terrain.getHeight(ngx, ngz);
+      const newH = this.terrain.getInterpolatedHeight(s.wx, s.wz);
 
       // Update mesh position
       s.mesh.position.set(s.wx, newH + 0.15, s.wz);
@@ -208,16 +207,16 @@ export class Skiers {
 
       // Smoothly face direction of overall movement (velocity + carve)
       if (s.speed > 0.01) {
-        const targetRot = Math.atan2(s.vx + (s.timeAlive ? Math.sin(s.timeAlive * 0.6) * 1.5 : 0), s.vz);
+        const targetRot = Math.atan2(s.vx + carveX, s.vz + carveZ);
         // Lerp rotation to remove jumpiness: if difference is huge (like passing Math.PI), just snap, else lerp
         let diff = targetRot - s.mesh.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        s.mesh.rotation.y += diff * 12.0 * dt; // Smoothly arrive at target
+        s.mesh.rotation.y += diff * 6.0 * dt; // Smoothly arrive at target
       }
 
       // Trail
-      if (s.trailPoints.length < 600) {
+      if (s.trailPoints.length < 2000 * 3) {
         s.trailPoints.push(s.wx, newH + 0.05, s.wz);
         const posAttr = s.trail.geometry.attributes.position;
         const idx = s.trailPoints.length / 3 - 1;
@@ -281,7 +280,7 @@ export class Skiers {
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.6 }); // red jacket
     const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.7 }); // dark pants
     const skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
-    const skiMat = new THREE.MeshStandardMaterial({ color: 0x2a9d8f, roughness: 0.3, metalness: 0.2 });
+    const skiMat = new THREE.MeshStandardMaterial({ color: 0xffa500, roughness: 0.3, metalness: 0.2 });
 
     // Body (torso)
     const torso = new THREE.Mesh(
@@ -315,10 +314,10 @@ export class Skiers {
     // Skis
     for (const side of [-1, 1]) {
       const ski = new THREE.Mesh(
-        new THREE.BoxGeometry(0.04, 0.015, 0.35),
+        new THREE.BoxGeometry(0.08, 0.03, 0.6),
         skiMat
       );
-      ski.position.set(side * 0.04, 0.01, 0);
+      ski.position.set(side * 0.08, 0.015, 0);
       ski.castShadow = true;
       group.add(ski);
     }
@@ -326,10 +325,10 @@ export class Skiers {
     // Poles (thin cylinders)
     for (const side of [-1, 1]) {
       const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.005, 0.3, 4),
+        new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4),
         skiMat
       );
-      pole.position.set(side * 0.12, 0.2, 0);
+      pole.position.set(side * 0.16, 0.2, 0);
       pole.rotation.z = side * 0.2;
       group.add(pole);
     }

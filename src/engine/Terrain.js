@@ -63,6 +63,37 @@ export class Terrain {
     this.heightmap[gz * this.resolution + gx] = value;
   }
 
+  /** Get smooth interpolated height at world position */
+  getInterpolatedHeight(wx, wz) {
+    const half = this.size / 2;
+    const fx = ((wx + half) / this.size) * (this.resolution - 1);
+    const fz = ((wz + half) / this.size) * (this.resolution - 1);
+    
+    if (fx < 0 || fx >= this.resolution - 1 || fz < 0 || fz >= this.resolution - 1) {
+      // Out of bounds, return nearest grid height
+      const { gx, gz } = this.worldToGrid(wx, wz);
+      return this.getHeight(gx, gz);
+    }
+
+    const gx0 = Math.floor(fx);
+    const gx1 = gx0 + 1;
+    const gz0 = Math.floor(fz);
+    const gz1 = gz0 + 1;
+    
+    const tx = fx - gx0;
+    const tz = fz - gz0;
+    
+    const h00 = this.getHeight(gx0, gz0);
+    const h10 = this.getHeight(gx1, gz0);
+    const h01 = this.getHeight(gx0, gz1);
+    const h11 = this.getHeight(gx1, gz1);
+    
+    const h0 = h00 * (1 - tx) + h10 * tx;
+    const h1 = h01 * (1 - tx) + h11 * tx;
+    
+    return h0 * (1 - tz) + h1 * tz;
+  }
+
   /** Convert world (x, z) → grid indices */
   worldToGrid(wx, wz) {
     const half = this.size / 2;
