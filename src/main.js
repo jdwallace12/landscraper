@@ -19,8 +19,8 @@ let chairliftStartPoint = null;
 // ---- Init ----
 const canvas = document.getElementById('canvas');
 const scene = new SceneManager(canvas);
-const terrain = new Terrain(200, 256);
-const water = new Water(200, seaLevel);
+const terrain = new Terrain(400, 256);
+const water = new Water(400, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
