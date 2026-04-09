@@ -310,18 +310,6 @@ input[type="range"]::-moz-range-thumb {
   transform: translateY(0);
 }
 
-/* ---- Tree Count ---- */
-.tree-count {
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  text-align: center;
-  padding: 4px 0;
-}
-.tree-count-value {
-  color: #34d399;
-  font-weight: 700;
-}
-
 /* ---- Responsive ---- */
 @media (max-width: 640px) {
   :root {

@@ -2,6 +2,7 @@ import { SceneManager } from './engine/SceneManager.js';
 import { Terrain } from './engine/Terrain.js';
 import { Water } from './engine/Water.js';
 import { Trees } from './engine/Trees.js';
+import { Skiers } from './engine/Skiers.js';
 import { BrushEngine } from './tools/BrushEngine.js';
 import { TOOLS } from './tools/tools.js';
 import { History } from './history/History.js';
@@ -18,11 +19,13 @@ const scene = new SceneManager(canvas);
 const terrain = new Terrain(200, 256);
 const water = new Water(200, seaLevel);
 const trees = new Trees(terrain);
+const skiers = new Skiers(terrain);
 const history = new History(50);
 
 scene.add(terrain.mesh);
 scene.add(water.mesh);
 scene.add(trees.group);
+scene.add(skiers.group);
 
 const brush = new BrushEngine(terrain, scene.camera, canvas);
 brush.setTool(TOOLS[currentToolKey]);
@@ -80,11 +83,11 @@ function doReset() {
   history.push(terrain.snapshot());
   terrain.reset(seaLevel);
   trees.clear();
-  ui.setTreeCount(0);
+  skiers.clear();
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 
-// ---- Tree placement on click ----
+// ---- Tree & Skier placement on click ----
 canvas.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || e.altKey || e.metaKey) return;
   if (!brush.intersectionPoint) return;
@@ -99,7 +102,6 @@ canvas.addEventListener('mousedown', (e) => {
       worldRadius,
       treeDensity
     );
-    ui.setTreeCount(trees.count);
   }
 
   if (tool.isTreeClear) {
@@ -109,7 +111,10 @@ canvas.addEventListener('mousedown', (e) => {
       brush.intersectionPoint.z,
       worldRadius
     );
-    ui.setTreeCount(trees.count);
+  }
+
+  if (tool.isSkier) {
+    skiers.spawn(brush.intersectionPoint.x, brush.intersectionPoint.z);
   }
 });
 
@@ -132,10 +137,11 @@ function animate() {
   const dt = scene.getDelta();
 
   const modified = brush.update(seaLevel);
-  // Update tree Y positions when terrain changes under them
   if (modified) {
     trees.updatePositions();
   }
+
+  skiers.update(dt, seaLevel);
 
   water.update(dt);
   scene.render();

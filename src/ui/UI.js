@@ -13,12 +13,6 @@ export class UI {
     this.redoBtn.classList.toggle('disabled', !canRedo);
   }
 
-  setTreeCount(count) {
-    if (this.treeCountEl) {
-      this.treeCountEl.textContent = count;
-    }
-  }
-
   _build() {
     const sidebar = document.getElementById('sidebar');
 
@@ -58,13 +52,6 @@ export class UI {
       toolGrid.appendChild(btn);
     });
     sidebar.appendChild(toolGrid);
-
-    // Tree count
-    const treeInfo = document.createElement('div');
-    treeInfo.className = 'tree-count';
-    treeInfo.innerHTML = '🌲 Trees: <span class="tree-count-value">0</span>';
-    this.treeCountEl = treeInfo.querySelector('.tree-count-value');
-    sidebar.appendChild(treeInfo);
 
     sidebar.appendChild(this._divider());
 
@@ -183,7 +170,7 @@ export class UI {
   _bindKeys() {
     const toolKeys = Object.keys(TOOLS);
     window.addEventListener('keydown', (e) => {
-      // Number keys 1-7 for tools
+      // Number keys 1-8 for tools
       const num = parseInt(e.key);
       if (num >= 1 && num <= toolKeys.length) {
         this._selectTool(toolKeys[num - 1]);

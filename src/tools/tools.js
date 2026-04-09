@@ -118,6 +118,16 @@ export const TOOLS = {
     isTreeClear: true,
     apply() { /* no-op — tree clearing handled externally */ },
   },
+
+  skier: {
+    name: 'Skier',
+    icon: '⛷️',
+    color: '#e63946',
+    cursor: 'crosshair',
+    isBrush: false,
+    isSkier: true,
+    apply() { /* no-op — skier placement handled externally */ },
+  },
 };
 
 /**
