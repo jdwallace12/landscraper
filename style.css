@@ -1,0 +1,308 @@
+/* ==============================
+   LandScraper — Global Styles
+   Dark glassmorphism + neon accents
+   ============================== */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --sidebar-width: 240px;
+  --glass-bg: rgba(10, 14, 28, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --text: #e4e8f1;
+  --text-dim: #8892a8;
+  --accent: #4ade80;
+  --accent-glow: rgba(74, 222, 128, 0.25);
+  --danger: #f87171;
+  --radius: 10px;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  background: #060a14;
+  color: var(--text);
+}
+
+/* ---- Canvas ---- */
+#canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---- Sidebar ---- */
+#sidebar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  bottom: 16px;
+  width: var(--sidebar-width);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 100;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+
+  /* Entrance animation */
+  animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ---- Title ---- */
+.sidebar-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-icon {
+  font-size: 1.4rem;
+}
+.sidebar-subtitle {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/* ---- Divider ---- */
+.divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--glass-border),
+    transparent
+  );
+  margin: 6px 0;
+}
+
+/* ---- Section Labels ---- */
+.section-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+/* ---- Tool Grid ---- */
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.tool-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.tool-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  background: radial-gradient(
+    circle at center,
+    var(--tool-color),
+    transparent 70%
+  );
+}
+
+.tool-btn:hover {
+  border-color: var(--tool-color);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+.tool-btn:hover::before {
+  opacity: 0.1;
+}
+
+.tool-btn.active {
+  border-color: var(--tool-color);
+  box-shadow:
+    0 0 12px -2px var(--tool-color),
+    inset 0 0 20px -8px var(--tool-color);
+}
+.tool-btn.active::before {
+  opacity: 0.15;
+}
+
+.tool-icon {
+  font-size: 1.3rem;
+}
+.tool-name {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+
+/* ---- Sliders ---- */
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slider-group label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.slider-value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: grab;
+}
+
+/* ---- History Buttons ---- */
+.history-row {
+  display: flex;
+  gap: 8px;
+}
+
+.history-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.history-btn:hover:not(.disabled) {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+}
+.history-btn.disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ---- Hint ---- */
+.hint {
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  text-align: center;
+}
+.hint b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  :root {
+    --sidebar-width: 180px;
+  }
+  #sidebar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: 45vh;
+    border-radius: 16px 16px 0 0;
+    flex-direction: column;
+    padding: 14px 12px;
+  }
+  .tool-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
