@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -88,6 +88,26 @@ export class UI {
     this.seaLevelSlider = this._slider(sidebar, 'Sea Level', -10, 20, -1, (v) => {
       this.callbacks.onSeaLevel(v);
     }, 0.5);
+
+    // Wireframe Toggle
+    const wireframeRow = document.createElement('div');
+    wireframeRow.className = 'slider-group';
+    const wireframeLabel = document.createElement('label');
+    wireframeLabel.style.display = 'flex';
+    wireframeLabel.style.justifyContent = 'space-between';
+    wireframeLabel.style.width = '100%';
+    wireframeLabel.style.cursor = 'pointer';
+    wireframeLabel.innerHTML = '<span>Show Grid</span>';
+    const wireframeCheckbox = document.createElement('input');
+    wireframeCheckbox.type = 'checkbox';
+    wireframeCheckbox.addEventListener('change', (e) => {
+      if (this.callbacks.onToggleWireframe) {
+        this.callbacks.onToggleWireframe(e.target.checked);
+      }
+    });
+    wireframeLabel.appendChild(wireframeCheckbox);
+    wireframeRow.appendChild(wireframeLabel);
+    sidebar.appendChild(wireframeRow);
 
     sidebar.appendChild(this._divider());
 

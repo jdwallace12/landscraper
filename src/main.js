@@ -63,6 +63,9 @@ const ui = new UI({
     water.setSeaLevel(v);
     terrain.updateMesh(seaLevel);
   },
+  onToggleWireframe(checked) {
+    terrain.material.wireframe = checked;
+  },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },
