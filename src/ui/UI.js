@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo, onReset, onTreeDensity }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo, onReset, onTreeDensity };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -11,6 +11,12 @@ export class UI {
   setUndoRedoState(canUndo, canRedo) {
     this.undoBtn.classList.toggle('disabled', !canUndo);
     this.redoBtn.classList.toggle('disabled', !canRedo);
+  }
+
+  setTreeCount(count) {
+    if (this.treeCountEl) {
+      this.treeCountEl.textContent = count;
+    }
   }
 
   _build() {
@@ -53,6 +59,13 @@ export class UI {
     });
     sidebar.appendChild(toolGrid);
 
+    // Tree count
+    const treeInfo = document.createElement('div');
+    treeInfo.className = 'tree-count';
+    treeInfo.innerHTML = '🌲 Trees: <span class="tree-count-value">0</span>';
+    this.treeCountEl = treeInfo.querySelector('.tree-count-value');
+    sidebar.appendChild(treeInfo);
+
     sidebar.appendChild(this._divider());
 
     // Brush settings
@@ -68,6 +81,10 @@ export class UI {
     this.strengthSlider = this._slider(sidebar, 'Strength', 0.05, 2.0, 0.6, (v) => {
       this.callbacks.onBrushStrength(v);
     }, 0.05);
+
+    this.treeDensitySlider = this._slider(sidebar, 'Tree Density', 1, 10, 5, (v) => {
+      this.callbacks.onTreeDensity(v);
+    });
 
     sidebar.appendChild(this._divider());
 
@@ -101,10 +118,23 @@ export class UI {
     historyRow.appendChild(this.redoBtn);
     sidebar.appendChild(historyRow);
 
+    // Start Fresh button
+    sidebar.appendChild(this._divider());
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'reset-btn';
+    resetBtn.innerHTML = '🔄 Start Fresh';
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Reset everything? This will clear the terrain and all trees.')) {
+        this.callbacks.onReset();
+      }
+    });
+    sidebar.appendChild(resetBtn);
+
     // Keyboard hint
     const hint = document.createElement('div');
     hint.className = 'hint';
-    hint.innerHTML = '<b>Shortcuts</b><br>1-5 Tools · Ctrl+Z Undo<br>Ctrl+Shift+Z Redo · [ ] Brush Size';
+    hint.innerHTML = '<b>Shortcuts</b><br>1-7 Tools · Ctrl+Z Undo<br>Ctrl+Shift+Z Redo · [ ] Brush Size';
     sidebar.appendChild(hint);
   }
 
@@ -153,7 +183,7 @@ export class UI {
   _bindKeys() {
     const toolKeys = Object.keys(TOOLS);
     window.addEventListener('keydown', (e) => {
-      // Number keys 1-5 for tools
+      // Number keys 1-7 for tools
       const num = parseInt(e.key);
       if (num >= 1 && num <= toolKeys.length) {
         this._selectTool(toolKeys[num - 1]);

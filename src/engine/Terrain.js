@@ -82,6 +82,12 @@ export class Terrain {
     this.updateMesh();
   }
 
+  /** Reset terrain to flat (all zeros) */
+  reset(seaLevel = 0) {
+    this.heightmap.fill(0);
+    this.updateMesh(seaLevel);
+  }
+
   /** Push heightmap data into geometry and recolor */
   updateMesh(seaLevel = 0) {
     const pos = this.geometry.attributes.position;

@@ -9,6 +9,7 @@ export const TOOLS = {
     icon: '⛰️',
     color: '#4ade80',
     cursor: 'crosshair',
+    isBrush: true,
     apply(heightmap, res, cx, cz, radius, strength) {
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
         heightmap[i] += strength * falloff;
@@ -21,6 +22,7 @@ export const TOOLS = {
     icon: '🕳️',
     color: '#60a5fa',
     cursor: 'crosshair',
+    isBrush: true,
     apply(heightmap, res, cx, cz, radius, strength) {
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
         heightmap[i] -= strength * falloff;
@@ -33,6 +35,7 @@ export const TOOLS = {
     icon: '⬜',
     color: '#fbbf24',
     cursor: 'crosshair',
+    isBrush: true,
     _targetHeight: null,
     apply(heightmap, res, cx, cz, radius, strength, isStart) {
       if (isStart || this._targetHeight === null) {
@@ -51,6 +54,7 @@ export const TOOLS = {
     icon: '🌊',
     color: '#c084fc',
     cursor: 'crosshair',
+    isBrush: true,
     apply(heightmap, res, cx, cz, radius, strength) {
       // We need a copy to read from while writing
       const copy = new Float32Array(heightmap);
@@ -78,6 +82,7 @@ export const TOOLS = {
     icon: '🏔️',
     color: '#f472b6',
     cursor: 'crosshair',
+    isBrush: true,
     _targetHeight: null,
     apply(heightmap, res, cx, cz, radius, strength, isStart) {
       if (isStart || this._targetHeight === null) {
@@ -92,6 +97,26 @@ export const TOOLS = {
         }
       });
     },
+  },
+
+  trees: {
+    name: 'Trees',
+    icon: '🌲',
+    color: '#34d399',
+    cursor: 'crosshair',
+    isBrush: false,  // handled specially in main.js
+    isTree: true,
+    apply() { /* no-op — tree placement handled externally */ },
+  },
+
+  treeClear: {
+    name: 'Clear Trees',
+    icon: '🪓',
+    color: '#fb923c',
+    cursor: 'crosshair',
+    isBrush: false,
+    isTreeClear: true,
+    apply() { /* no-op — tree clearing handled externally */ },
   },
 };
 
