@@ -11,7 +11,7 @@ export class BrushEngine {
     this.intersectionPoint = null;
 
     this.tool = null;       // current tool object
-    this.radius = 8;
+    this.radius = 16;
     this.strength = 0.6;
     this.painting = false;
     this._isStart = false;

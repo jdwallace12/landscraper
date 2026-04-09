@@ -17,8 +17,8 @@ export class SceneManager {
     this._buildSky();
 
     // Camera
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 1000);
-    this.camera.position.set(60, 80, 120);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 3000);
+    this.camera.position.set(120, 160, 240);
     this.camera.lookAt(0, 0, 0);
 
     // Controls
@@ -27,8 +27,10 @@ export class SceneManager {
     this.controls.dampingFactor = 0.08;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     this.controls.minDistance = 20;
-    this.controls.maxDistance = 300;
+    this.controls.maxDistance = 800;
     this.controls.target.set(0, 0, 0);
+    this.controls.listenToKeyEvents(window);
+    this.controls.keyPanSpeed = 50.0; // Pan relatively fast to navigate 800-unit terrain
 
     // Lights
     this._buildLights();
@@ -55,7 +57,7 @@ export class SceneManager {
 
   _buildSky() {
     // Gradient sky via a large sphere with vertex colors
-    const skyGeo = new THREE.SphereGeometry(400, 32, 32);
+    const skyGeo = new THREE.SphereGeometry(900, 32, 32);
     const skyColors = [];
     const topColor = new THREE.Color(0x0b1026);
     const horizonColor = new THREE.Color(0x2a4a6b);
@@ -63,7 +65,7 @@ export class SceneManager {
 
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
-      const t = THREE.MathUtils.clamp((y + 400) / 800, 0, 1);
+      const t = THREE.MathUtils.clamp((y + 900) / 1800, 0, 1);
       const c = new THREE.Color().lerpColors(horizonColor, topColor, t);
       skyColors.push(c.r, c.g, c.b);
     }
@@ -93,11 +95,11 @@ export class SceneManager {
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 400;
-    sun.shadow.camera.left = -150;
-    sun.shadow.camera.right = 150;
-    sun.shadow.camera.top = 150;
-    sun.shadow.camera.bottom = -150;
+    sun.shadow.camera.far = 1000;
+    sun.shadow.camera.left = -400;
+    sun.shadow.camera.right = 400;
+    sun.shadow.camera.top = 400;
+    sun.shadow.camera.bottom = -400;
     sun.shadow.bias = -0.0005;
     this.scene.add(sun);
   }

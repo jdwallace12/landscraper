@@ -61,7 +61,7 @@ export class UI {
     brushLabel.textContent = 'Brush';
     sidebar.appendChild(brushLabel);
 
-    this.radiusSlider = this._slider(sidebar, 'Size', 1, 40, 8, (v) => {
+    this.radiusSlider = this._slider(sidebar, 'Size', 1, 100, 16, (v) => {
       this.callbacks.onBrushRadius(v);
     });
 
@@ -231,12 +231,12 @@ export class UI {
       }
       // Brush size with [ ]
       if (e.key === '[') {
-        const v = Math.max(1, parseFloat(this.radiusSlider.value) - 2);
+        const v = Math.max(1, parseFloat(this.radiusSlider.value) - 4);
         this.radiusSlider.value = v;
         this.radiusSlider.dispatchEvent(new Event('input'));
       }
       if (e.key === ']') {
-        const v = Math.min(40, parseFloat(this.radiusSlider.value) + 2);
+        const v = Math.min(100, parseFloat(this.radiusSlider.value) + 4);
         this.radiusSlider.value = v;
         this.radiusSlider.dispatchEvent(new Event('input'));
       }
