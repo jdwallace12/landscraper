@@ -21,12 +21,12 @@ let isSnowing = false;
 // ---- Init ----
 const canvas = document.getElementById('canvas');
 const scene = new SceneManager(canvas);
-const terrain = new Terrain(800, 512);
-const water = new Water(800, seaLevel);
+const terrain = new Terrain(600, 384);
+const water = new Water(600, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
-const snow = new Snow(800);
+const snow = new Snow(600);
 const history = new History(50);
 
 scene.add(terrain.mesh);

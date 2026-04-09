@@ -18,7 +18,7 @@ export class SceneManager {
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 3000);
-    this.camera.position.set(120, 160, 240);
+    this.camera.position.set(90, 120, 180);
     this.camera.lookAt(0, 0, 0);
 
     // Controls
@@ -27,7 +27,7 @@ export class SceneManager {
     this.controls.dampingFactor = 0.08;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     this.controls.minDistance = 20;
-    this.controls.maxDistance = 1200;
+    this.controls.maxDistance = 1000;
     this.controls.zoomSpeed = 2.5;
     this.controls.panSpeed = 2.0;
     this.controls.screenSpacePanning = false; // Pan strictly overrides the XZ plane instead of camera plane (RTS style)
@@ -43,6 +43,21 @@ export class SceneManager {
 
     // Clock
     this.clock = new THREE.Clock();
+
+    // Custom vertical panning
+    window.addEventListener('keydown', (e) => {
+      // Don't intercept if typing in an input
+      if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
+
+      const verticalSpeed = 8.0;
+      if (e.key.toLowerCase() === 'w') {
+        this.camera.position.y += verticalSpeed;
+        this.controls.target.y += verticalSpeed;
+      } else if (e.key.toLowerCase() === 's') {
+        this.camera.position.y -= verticalSpeed;
+        this.controls.target.y -= verticalSpeed;
+      }
+    });
   }
 
   add(object) {
@@ -60,7 +75,7 @@ export class SceneManager {
 
   _buildSky() {
     // Gradient sky via a large sphere with vertex colors
-    const skyGeo = new THREE.SphereGeometry(900, 32, 32);
+    const skyGeo = new THREE.SphereGeometry(700, 32, 32);
     const skyColors = [];
     const topColor = new THREE.Color(0x0b1026);
     const horizonColor = new THREE.Color(0x2a4a6b);
@@ -68,7 +83,7 @@ export class SceneManager {
 
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
-      const t = THREE.MathUtils.clamp((y + 900) / 1800, 0, 1);
+      const t = THREE.MathUtils.clamp((y + 700) / 1400, 0, 1);
       const c = new THREE.Color().lerpColors(horizonColor, topColor, t);
       skyColors.push(c.r, c.g, c.b);
     }
@@ -98,11 +113,11 @@ export class SceneManager {
     sun.shadow.mapSize.width = 2048;
     sun.shadow.mapSize.height = 2048;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 1000;
-    sun.shadow.camera.left = -400;
-    sun.shadow.camera.right = 400;
-    sun.shadow.camera.top = 400;
-    sun.shadow.camera.bottom = -400;
+    sun.shadow.camera.far = 800;
+    sun.shadow.camera.left = -300;
+    sun.shadow.camera.right = 300;
+    sun.shadow.camera.top = 300;
+    sun.shadow.camera.bottom = -300;
     sun.shadow.bias = -0.0005;
     this.scene.add(sun);
   }
