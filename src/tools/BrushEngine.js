@@ -23,20 +23,26 @@ export class BrushEngine {
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onMouseDown = this._onMouseDown.bind(this);
     this._onMouseUp = this._onMouseUp.bind(this);
+    this._onTouchStart = this._onTouchStart.bind(this);
+    this._onTouchMove = this._onTouchMove.bind(this);
 
     canvas.addEventListener('mousemove', this._onMouseMove);
     canvas.addEventListener('mousedown', this._onMouseDown);
     canvas.addEventListener('mouseup', this._onMouseUp);
     canvas.addEventListener('mouseleave', this._onMouseUp);
+
+    // Touch events for mobile
+    canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', this._onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', this._onMouseUp);
+    canvas.addEventListener('touchcancel', this._onMouseUp);
   }
 
   setTool(tool) {
     this.tool = tool;
   }
 
-  /** Call each frame; returns true if terrain was modified */
-  update(seaLevel) {
-    // Update raycaster
+  _updateRaycaster() {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObject(this.terrain.mesh);
 
@@ -52,6 +58,13 @@ export class BrushEngine {
       this.cursorMesh.visible = false;
       this.intersectionPoint = null;
     }
+  }
+
+  /** Call each frame; returns true if terrain was modified */
+  update(seaLevel) {
+    // Update raycaster
+    this._updateRaycaster();
+
 
     // Apply tool
     if (this.painting && this.tool && this.intersectionPoint) {
@@ -94,19 +107,47 @@ export class BrushEngine {
     return mesh;
   }
 
-  _onMouseMove(e) {
+  _updateMouseFromEvent(e) {
     const rect = this.canvas.getBoundingClientRect();
-    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  _onMouseMove(e) {
+    this._updateMouseFromEvent(e);
+  }
+
+  _onTouchMove(e) {
+    if (e.touches.length === 1) {
+      this._updateMouseFromEvent(e);
+    }
   }
 
   _onMouseDown(e) {
     // Only paint on left click and not when orbiting (middle / right)
-    if (e.button !== 0) return;
+    if (e.button !== undefined && e.button !== 0) return;
     // Don't paint if alt/meta is held (orbit shortcut)
     if (e.altKey || e.metaKey) return;
     this.painting = true;
     this._isStart = true;
+  }
+
+  _onTouchStart(e) {
+    if (e.touches.length === 1) {
+      this._updateMouseFromEvent(e);
+      // Immediately raycast so intersectionPoint is valid for touchstart listeners in main.js
+      this._updateRaycaster();
+      this.painting = true;
+      this._isStart = true;
+    }
   }
 
   _onMouseUp() {

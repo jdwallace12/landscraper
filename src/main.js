@@ -79,15 +79,6 @@ const ui = new UI({
   onReset() { doReset(); },
 });
 
-// ---- Undo / Redo wiring ----
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 0 && !e.altKey && !e.metaKey) {
-    // Save snapshot before painting starts
-    history.push(terrain.snapshot());
-    ui.setUndoRedoState(history.canUndo(), history.canRedo());
-  }
-});
-
 function doUndo() {
   const snap = history.undo(terrain.snapshot());
   if (snap) {
@@ -117,30 +108,27 @@ function doReset() {
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 
-// ---- Tree & Skier placement on click ----
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.altKey || e.metaKey) return;
+// ---- Interaction wiring (Undo, Placements, Orbit controls) ----
+function handleInteractStart(e) {
+  if (e.type === 'mousedown' && (e.button !== 0 || e.altKey || e.metaKey)) return;
+  if (e.type === 'touchstart' && e.touches.length !== 1) return;
+
   if (!brush.intersectionPoint) return;
+
+  // Save snapshot before painting starts
+  history.push(terrain.snapshot());
+  ui.setUndoRedoState(history.canUndo(), history.canRedo());
 
   const tool = TOOLS[currentToolKey];
 
   if (tool.isTree) {
     const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
-    trees.placeCluster(
-      brush.intersectionPoint.x,
-      brush.intersectionPoint.z,
-      worldRadius,
-      treeDensity
-    );
+    trees.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity);
   }
 
   if (tool.isTreeClear) {
     const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
-    trees.removeNear(
-      brush.intersectionPoint.x,
-      brush.intersectionPoint.z,
-      worldRadius
-    );
+    trees.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
   }
 
   if (tool.isSkier) {
@@ -150,34 +138,33 @@ canvas.addEventListener('mousedown', (e) => {
   if (tool.isChairlift) {
     if (!chairliftStartPoint) {
       chairliftStartPoint = brush.intersectionPoint.clone();
-      brush.updateCursorColor('#e63946'); // Turn red to show it's waiting for second click
+      brush.updateCursorColor('#e63946');
     } else {
       const endPoint = brush.intersectionPoint.clone();
       chairlifts.buildLine(chairliftStartPoint, endPoint);
       chairliftStartPoint = null;
-      brush.updateCursorColor(tool.color); // Revert to blue
-    }
-  } else {
-    // If we clicked with another tool, ensure we clear the half-built chairlift state
-    if (chairliftStartPoint) {
-      chairliftStartPoint = null;
       brush.updateCursorColor(tool.color);
     }
+  } else if (chairliftStartPoint) {
+    chairliftStartPoint = null;
+    brush.updateCursorColor(tool.color);
   }
-});
 
-// ---- Disable orbit while sculpting ----
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 0 && !e.altKey && !e.metaKey && brush.intersectionPoint) {
-    scene.controls.enabled = false;
-  }
-});
-canvas.addEventListener('mouseup', () => {
+  // Disable orbit while sculpting
+  scene.controls.enabled = false;
+}
+
+function handleInteractEnd() {
   scene.controls.enabled = true;
-});
-canvas.addEventListener('mouseleave', () => {
-  scene.controls.enabled = true;
-});
+}
+
+canvas.addEventListener('mousedown', handleInteractStart);
+canvas.addEventListener('touchstart', handleInteractStart, { passive: false });
+
+canvas.addEventListener('mouseup', handleInteractEnd);
+canvas.addEventListener('mouseleave', handleInteractEnd);
+canvas.addEventListener('touchend', handleInteractEnd);
+canvas.addEventListener('touchcancel', handleInteractEnd);
 
 // ---- Render loop ----
 function animate() {
