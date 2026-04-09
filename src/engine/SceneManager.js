@@ -27,7 +27,10 @@ export class SceneManager {
     this.controls.dampingFactor = 0.08;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     this.controls.minDistance = 20;
-    this.controls.maxDistance = 800;
+    this.controls.maxDistance = 1200;
+    this.controls.zoomSpeed = 2.5;
+    this.controls.panSpeed = 2.0;
+    this.controls.screenSpacePanning = false; // Pan strictly overrides the XZ plane instead of camera plane (RTS style)
     this.controls.target.set(0, 0, 0);
     this.controls.listenToKeyEvents(window);
     this.controls.keyPanSpeed = 50.0; // Pan relatively fast to navigate 800-unit terrain

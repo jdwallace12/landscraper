@@ -236,7 +236,7 @@ export class Skiers {
       }
 
       // Trail points appending
-      s.trailPoints.push(s.wx, newH + 0.05, s.wz);
+      s.trailPoints.push(s.wx, newH + 0.15, s.wz);
     }
   }
 
