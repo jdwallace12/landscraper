@@ -7,6 +7,7 @@ import { Chairlifts } from './engine/Chairlifts.js';
 import { BrushEngine } from './tools/BrushEngine.js';
 import { TOOLS } from './tools/tools.js';
 import { History } from './history/History.js';
+import { Snow } from './engine/Snow.js';
 import { UI } from './ui/UI.js';
 
 // ---- State ----
@@ -15,6 +16,7 @@ let currentBaseElevation = 0;
 let currentToolKey = 'raise';
 let treeDensity = 5;
 let chairliftStartPoint = null;
+let isSnowing = false;
 
 // ---- Init ----
 const canvas = document.getElementById('canvas');
@@ -24,6 +26,7 @@ const water = new Water(400, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
+const snow = new Snow(400);
 const history = new History(50);
 
 scene.add(terrain.mesh);
@@ -31,6 +34,7 @@ scene.add(water.mesh);
 scene.add(trees.group);
 scene.add(skiers.group);
 scene.add(chairlifts.group);
+scene.add(snow.group);
 
 const brush = new BrushEngine(terrain, scene.camera, canvas);
 brush.setTool(TOOLS[currentToolKey]);
@@ -65,6 +69,10 @@ const ui = new UI({
   },
   onToggleWireframe(checked) {
     terrain.material.wireframe = checked;
+  },
+  onToggleSnow(checked) {
+    isSnowing = checked;
+    snow.toggle(checked);
   },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
@@ -181,8 +189,9 @@ function animate() {
     trees.updatePositions();
   }
 
-  skiers.update(dt, seaLevel, chairlifts);
+  skiers.update(dt, seaLevel, chairlifts, isSnowing);
   chairlifts.update(dt);
+  snow.update(dt);
 
   water.update(dt);
   scene.render();

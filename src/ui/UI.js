@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe, onToggleSnow }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe, onToggleSnow };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -108,6 +108,26 @@ export class UI {
     wireframeLabel.appendChild(wireframeCheckbox);
     wireframeRow.appendChild(wireframeLabel);
     sidebar.appendChild(wireframeRow);
+
+    // Snow Toggle
+    const snowRow = document.createElement('div');
+    snowRow.className = 'slider-group';
+    const snowLabel = document.createElement('label');
+    snowLabel.style.display = 'flex';
+    snowLabel.style.justifyContent = 'space-between';
+    snowLabel.style.width = '100%';
+    snowLabel.style.cursor = 'pointer';
+    snowLabel.innerHTML = '<span>❄️ Let it Snow!</span>';
+    const snowCheckbox = document.createElement('input');
+    snowCheckbox.type = 'checkbox';
+    snowCheckbox.addEventListener('change', (e) => {
+      if (this.callbacks.onToggleSnow) {
+        this.callbacks.onToggleSnow(e.target.checked);
+      }
+    });
+    snowLabel.appendChild(snowCheckbox);
+    snowRow.appendChild(snowLabel);
+    sidebar.appendChild(snowRow);
 
     sidebar.appendChild(this._divider());
 

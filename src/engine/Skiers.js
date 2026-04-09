@@ -47,7 +47,7 @@ export class Skiers {
   }
 
   /** Update all skiers — call each frame with deltaTime, seaLevel, and chairlifts ref */
-  update(dt, seaLevel, chairlifts) {
+  update(dt, seaLevel, chairlifts, isSnowing = false) {
     const gravity = 10.0;
     const friction = 0.97;
     const minSpeed = 0.001;
@@ -56,6 +56,26 @@ export class Skiers {
     const half = size / 2;
 
     for (const s of this.skiers) {
+      // Trail Fading/Overwriting
+      let fadePointsCount = isSnowing ? 6 : 0; // If snowing, remove old tracks over time (2 nodes per frame)
+      
+      // Also shift if we exceed max points
+      while (s.active && s.trailPoints.length >= 2000 * 3) {
+        s.trailPoints.splice(0, 3);
+      }
+      
+      if (fadePointsCount > 0 && s.trailPoints.length > 0) {
+        s.trailPoints.splice(0, Math.min(fadePointsCount, s.trailPoints.length));
+      }
+
+      // Update trail geometry buffer for active and inactive (if they still have tracks fading)
+      if (s.trailPoints.length > 0 || isSnowing) {
+         const posAttr = s.trail.geometry.attributes.position;
+         posAttr.array.set(s.trailPoints);
+         posAttr.needsUpdate = true;
+         s.trail.geometry.setDrawRange(0, s.trailPoints.length / 3);
+      }
+
       if (!s.active) continue;
 
       // Get grid position
@@ -215,15 +235,8 @@ export class Skiers {
         s.mesh.rotation.y += diff * 6.0 * dt; // Smoothly arrive at target
       }
 
-      // Trail
-      if (s.trailPoints.length < 2000 * 3) {
-        s.trailPoints.push(s.wx, newH + 0.05, s.wz);
-        const posAttr = s.trail.geometry.attributes.position;
-        const idx = s.trailPoints.length / 3 - 1;
-        posAttr.setXYZ(idx, s.wx, newH + 0.05, s.wz);
-        posAttr.needsUpdate = true;
-        s.trail.geometry.setDrawRange(0, s.trailPoints.length / 3);
-      }
+      // Trail points appending
+      s.trailPoints.push(s.wx, newH + 0.05, s.wz);
     }
   }
 
