@@ -142,6 +142,16 @@ export const TOOLS = {
     isSkier: true,
     apply() { /* no-op — skier placement handled externally */ },
   },
+
+  chairlift: {
+    name: 'Chairlift',
+    icon: '🚡',
+    color: '#3b82f6',
+    cursor: 'crosshair',
+    isBrush: false,
+    isChairlift: true,
+    apply() { /* no-op — handled externally */ },
+  },
 };
 
 /**

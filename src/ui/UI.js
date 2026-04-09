@@ -174,9 +174,10 @@ export class UI {
   _bindKeys() {
     const toolKeys = Object.keys(TOOLS);
     window.addEventListener('keydown', (e) => {
-      // Number keys 1-9 for tools
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= toolKeys.length) {
+      // Number keys 1-9, plus 0 for tool 10
+      let num = parseInt(e.key);
+      if (num === 0) num = 10;
+      if (!isNaN(num) && num >= 1 && num <= toolKeys.length) {
         this._selectTool(toolKeys[num - 1]);
         return;
       }

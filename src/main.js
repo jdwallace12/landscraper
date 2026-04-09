@@ -3,6 +3,7 @@ import { Terrain } from './engine/Terrain.js';
 import { Water } from './engine/Water.js';
 import { Trees } from './engine/Trees.js';
 import { Skiers } from './engine/Skiers.js';
+import { Chairlifts } from './engine/Chairlifts.js';
 import { BrushEngine } from './tools/BrushEngine.js';
 import { TOOLS } from './tools/tools.js';
 import { History } from './history/History.js';
@@ -13,6 +14,7 @@ let seaLevel = -1;
 let currentBaseElevation = 0;
 let currentToolKey = 'raise';
 let treeDensity = 5;
+let chairliftStartPoint = null;
 
 // ---- Init ----
 const canvas = document.getElementById('canvas');
@@ -21,12 +23,14 @@ const terrain = new Terrain(200, 256);
 const water = new Water(200, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
+const chairlifts = new Chairlifts(terrain);
 const history = new History(50);
 
 scene.add(terrain.mesh);
 scene.add(water.mesh);
 scene.add(trees.group);
 scene.add(skiers.group);
+scene.add(chairlifts.group);
 
 const brush = new BrushEngine(terrain, scene.camera, canvas);
 brush.setTool(TOOLS[currentToolKey]);
@@ -35,6 +39,7 @@ scene.add(brush.cursorMesh);
 const ui = new UI({
   onToolChange(key) {
     currentToolKey = key;
+    chairliftStartPoint = null; // Reset partial chairlifts on tool switch
     brush.setTool(TOOLS[key]);
     brush.updateCursorColor(TOOLS[key].color);
   },
@@ -97,6 +102,7 @@ function doReset() {
   terrain.reset(seaLevel);
   trees.clear();
   skiers.clear();
+  chairlifts.clear();
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 
@@ -129,6 +135,24 @@ canvas.addEventListener('mousedown', (e) => {
   if (tool.isSkier) {
     skiers.spawn(brush.intersectionPoint.x, brush.intersectionPoint.z);
   }
+
+  if (tool.isChairlift) {
+    if (!chairliftStartPoint) {
+      chairliftStartPoint = brush.intersectionPoint.clone();
+      brush.updateCursorColor('#e63946'); // Turn red to show it's waiting for second click
+    } else {
+      const endPoint = brush.intersectionPoint.clone();
+      chairlifts.buildLine(chairliftStartPoint, endPoint);
+      chairliftStartPoint = null;
+      brush.updateCursorColor(tool.color); // Revert to blue
+    }
+  } else {
+    // If we clicked with another tool, ensure we clear the half-built chairlift state
+    if (chairliftStartPoint) {
+      chairliftStartPoint = null;
+      brush.updateCursorColor(tool.color);
+    }
+  }
 });
 
 // ---- Disable orbit while sculpting ----
@@ -154,7 +178,8 @@ function animate() {
     trees.updatePositions();
   }
 
-  skiers.update(dt, seaLevel);
+  skiers.update(dt, seaLevel, chairlifts);
+  chairlifts.update(dt);
 
   water.update(dt);
   scene.render();
