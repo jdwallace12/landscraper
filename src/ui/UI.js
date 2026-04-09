@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo, onReset, onTreeDensity }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onUndo, onRedo, onReset, onTreeDensity };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -78,8 +78,12 @@ export class UI {
     // Sea level
     const waterLabel = document.createElement('div');
     waterLabel.className = 'section-label';
-    waterLabel.textContent = 'Water';
+    waterLabel.textContent = 'Global Height';
     sidebar.appendChild(waterLabel);
+
+    this.baseElevationSlider = this._slider(sidebar, 'Base Elevation', -30, 60, 0, (v) => {
+      this.callbacks.onBaseElevation(v);
+    }, 1);
 
     this.seaLevelSlider = this._slider(sidebar, 'Sea Level', -10, 20, -1, (v) => {
       this.callbacks.onSeaLevel(v);
@@ -170,7 +174,7 @@ export class UI {
   _bindKeys() {
     const toolKeys = Object.keys(TOOLS);
     window.addEventListener('keydown', (e) => {
-      // Number keys 1-8 for tools
+      // Number keys 1-9 for tools
       const num = parseInt(e.key);
       if (num >= 1 && num <= toolKeys.length) {
         this._selectTool(toolKeys[num - 1]);

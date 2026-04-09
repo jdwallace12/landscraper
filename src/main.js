@@ -10,6 +10,7 @@ import { UI } from './ui/UI.js';
 
 // ---- State ----
 let seaLevel = -1;
+let currentBaseElevation = 0;
 let currentToolKey = 'raise';
 let treeDensity = 5;
 
@@ -40,6 +41,18 @@ const ui = new UI({
   onBrushRadius(v) { brush.radius = v; },
   onBrushStrength(v) { brush.strength = v; },
   onTreeDensity(v) { treeDensity = v; },
+  onBaseElevation(v) {
+    if (v !== currentBaseElevation) {
+      if (!history.isBatching) {
+        history.push(terrain.snapshot()); // Save history before first drag shift
+      }
+      const delta = v - currentBaseElevation;
+      currentBaseElevation = v;
+      terrain.shiftGlobalHeight(delta);
+      terrain.updateMesh(seaLevel);
+      trees.updatePositions();
+    }
+  },
   onSeaLevel(v) {
     seaLevel = v;
     water.setSeaLevel(v);

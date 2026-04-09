@@ -99,6 +99,20 @@ export const TOOLS = {
     },
   },
 
+  roughen: {
+    name: 'Roughen',
+    icon: '⚡',
+    color: '#8b5cf6',
+    cursor: 'crosshair',
+    isBrush: true,
+    apply(heightmap, res, cx, cz, radius, strength) {
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        const noise = (Math.random() - 0.5) * 2.0; // Random fast peaks/valleys
+        heightmap[i] += noise * strength * falloff;
+      });
+    },
+  },
+
   trees: {
     name: 'Trees',
     icon: '🌲',

@@ -162,4 +162,10 @@ export class Terrain {
       return SNOW.clone();
     }
   }
+
+  shiftGlobalHeight(delta) {
+    for (let i = 0; i < this.heightmap.length; i++) {
+      this.heightmap[i] += delta;
+    }
+  }
 }

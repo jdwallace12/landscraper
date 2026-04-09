@@ -23,7 +23,7 @@ export class Skiers {
     this.group.add(mesh);
 
     // Trail line (ski tracks)
-    const trailMat = new THREE.LineBasicMaterial({ color: 0xd4d4d4, transparent: true, opacity: 0.8 });
+    const trailMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.9 });
     const trailGeo = new THREE.BufferGeometry();
     const trailPositions = new Float32Array(600 * 3); // max 600 trail points
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
@@ -39,13 +39,14 @@ export class Skiers {
       trail,
       trailPoints: [],
       speed: 0,
+      timeAlive: 0,
     });
   }
 
   /** Update all skiers — call each frame with deltaTime and seaLevel */
   update(dt, seaLevel) {
-    const gravity = 8.0;
-    const friction = 0.96;
+    const gravity = 4.0;
+    const friction = 0.95;
     const minSpeed = 0.001;
     const res = this.terrain.resolution;
     const size = this.terrain.size;
@@ -58,6 +59,7 @@ export class Skiers {
       const { gx, gz } = this.terrain.worldToGrid(s.wx, s.wz);
       if (gx <= 1 || gx >= res - 2 || gz <= 1 || gz >= res - 2) {
         s.active = false;
+        s.mesh.visible = false;
         continue;
       }
 
@@ -84,17 +86,34 @@ export class Skiers {
       // Stop if too slow and on flat ground
       if (s.speed < minSpeed && Math.abs(gradX) < 0.001 && Math.abs(gradZ) < 0.001) {
         s.active = false;
+        s.mesh.visible = false;
         continue;
       }
 
-      // Move
-      s.wx += s.vx * dt;
-      s.wz += s.vz * dt;
+      s.timeAlive += dt;
+
+      // Calculate perpendicular (cross) vector to current velocity for carving
+      let carveX = 0, carveZ = 0;
+      if (s.speed > 0.01) {
+        // perpendicular to [vx, vz] is [-vz, vx]
+        const px = -s.vz / s.speed;
+        const pz = s.vx / s.speed;
+        // Smoother, wider oscillation: lower frequency (1.2 instead of 3.5), lower amplitude
+        const carveStrength = Math.min(s.speed * 0.25, 1.0); 
+        const carveForce = Math.sin(s.timeAlive * 1.2) * carveStrength;
+        carveX = px * carveForce;
+        carveZ = pz * carveForce;
+      }
+
+      // Move with both forward velocity and lateral carve velocity
+      s.wx += (s.vx + carveX) * dt;
+      s.wz += (s.vz + carveZ) * dt;
 
       // Get new height
       const { gx: ngx, gz: ngz } = this.terrain.worldToGrid(s.wx, s.wz);
       if (ngx < 0 || ngx >= res || ngz < 0 || ngz >= res) {
         s.active = false;
+        s.mesh.visible = false;
         continue;
       }
       const newH = this.terrain.getHeight(ngx, ngz);
@@ -105,11 +124,17 @@ export class Skiers {
       // Stop if below the snow line (rock starts at seaLevel + 28)
       if (newH < seaLevel + 28) {
         s.active = false;
+        s.mesh.visible = false;
       }
 
-      // Face direction of movement
+      // Smoothly face direction of overall movement (velocity + carve)
       if (s.speed > 0.01) {
-        s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
+        const targetRot = Math.atan2(s.vx + (s.timeAlive ? Math.sin(s.timeAlive * 1.2) * 0.8 : 0), s.vz);
+        // Lerp rotation to remove jumpiness: if difference is huge (like passing Math.PI), just snap, else lerp
+        let diff = targetRot - s.mesh.rotation.y;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        s.mesh.rotation.y += diff * 12.0 * dt; // Smoothly arrive at target
       }
 
       // Trail
