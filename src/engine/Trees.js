@@ -6,11 +6,16 @@ import * as THREE from 'three';
  */
 
 const TREE_VARIANTS = [
-  { type: 'pine',     trunkH: 1.2, crownH: 3.5, crownR: 1.2, color: 0x2d6b30 },
-  { type: 'pine',     trunkH: 1.0, crownH: 4.0, crownR: 1.0, color: 0x1f5c22 },
-  { type: 'oak',      trunkH: 1.5, crownH: 2.5, crownR: 1.8, color: 0x3a8c3f },
-  { type: 'oak',      trunkH: 1.8, crownH: 2.0, crownR: 2.0, color: 0x4a9a4e },
-  { type: 'pine',     trunkH: 0.8, crownH: 2.8, crownR: 0.9, color: 0x276e2a },
+  // Pines — tall & narrow
+  { type: 'pine',     trunkH: 0.5, crownH: 1.6, crownR: 0.45, color: 0x2d6b30 },
+  { type: 'pine',     trunkH: 0.4, crownH: 1.8, crownR: 0.40, color: 0x1f5c22 },
+  { type: 'pine',     trunkH: 0.35, crownH: 1.3, crownR: 0.35, color: 0x276e2a },
+  { type: 'pine',     trunkH: 0.55, crownH: 2.0, crownR: 0.50, color: 0x1a5e1d },
+  { type: 'pine',     trunkH: 0.30, crownH: 1.1, crownR: 0.30, color: 0x347a37 },
+  { type: 'pine',     trunkH: 0.45, crownH: 1.5, crownR: 0.42, color: 0x235f26 },
+  // Oaks — shorter & rounder
+  { type: 'oak',      trunkH: 0.6, crownH: 1.0, crownR: 0.7,  color: 0x3a8c3f },
+  { type: 'oak',      trunkH: 0.7, crownH: 0.8, crownR: 0.8,  color: 0x4a9a4e },
 ];
 
 export class Trees {
@@ -48,7 +53,7 @@ export class Trees {
 
       // Pick a random variant
       const variant = TREE_VARIANTS[Math.floor(Math.random() * TREE_VARIANTS.length)];
-      const scale = 0.6 + Math.random() * 0.8;
+      const scale = 0.3 + Math.random() * 0.45;
       const tree = this._createTree(variant, scale);
 
       tree.position.set(tx, height, tz);

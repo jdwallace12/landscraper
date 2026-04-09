@@ -21,8 +21,6 @@ export class Water {
     this.mesh.position.y = seaLevel;
     this.mesh.receiveShadow = true;
 
-    this._time = 0;
-    this._basePositions = new Float32Array(this.geometry.attributes.position.array);
   }
 
   setSeaLevel(level) {
@@ -30,19 +28,7 @@ export class Water {
     this.mesh.position.y = level;
   }
 
-  update(dt) {
-    this._time += dt;
-    const pos = this.geometry.attributes.position;
-    const base = this._basePositions;
-
-    for (let i = 0; i < pos.count; i++) {
-      const bx = base[i * 3];
-      const bz = base[i * 3 + 2];
-      // gentle waves
-      const wave = Math.sin(bx * 0.15 + this._time * 1.2) * 0.15
-                 + Math.cos(bz * 0.12 + this._time * 0.9) * 0.1;
-      pos.setY(i, wave);
-    }
-    pos.needsUpdate = true;
+  update() {
+    // Water stays at a fixed level — no vertex animation
   }
 }
