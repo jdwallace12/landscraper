@@ -211,8 +211,8 @@ export class Terrain {
     }
 
     // Overlay exposed rock if heavily angled 
-    if (h > seaLevel + 0.5 && steepness > 0.4) {
-      const steepFactor = Math.min((steepness - 0.4) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
+    if (h > seaLevel + 0.5 && steepness > 0.6) {
+      const steepFactor = Math.min((steepness - 0.6) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
       tmp.lerpColors(baseColor, ROCK, steepFactor);
       return tmp;
     }
