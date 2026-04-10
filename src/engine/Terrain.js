@@ -32,13 +32,81 @@ export class Terrain {
     const colors = new Float32Array(count * 3);
     this.geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-    // Material with vertex colors
+    // Load tileable textures for Splatting (with Vite BASE_URL resolution mapped correctly)
+    const loader = new THREE.TextureLoader();
+    const base = import.meta.env.BASE_URL || '/';
+    const tGrass = loader.load(base + 'textures/moss.png');
+    const tRock = loader.load(base + 'textures/rock.png');
+    const tSnow = loader.load(base + 'textures/snow.png');
+    const tSand = loader.load(base + 'textures/sand.png');
+
+    [tGrass, tRock, tSnow, tSand].forEach(t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.colorSpace = THREE.SRGBColorSpace;
+    });
+
+    // Material with vertex colors serving as texture-blend weights
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       flatShading: false,
       roughness: 0.85,
       metalness: 0.05,
+      map: tGrass // Fakes out WebGLProgram compiler to permanently supply the 'vUv' varying attribute for texture mapping
     });
+
+    this.material.onBeforeCompile = (shader) => {
+      shader.uniforms.tGrass = { value: tGrass };
+      shader.uniforms.tRock = { value: tRock };
+      shader.uniforms.tSnow = { value: tSnow };
+      shader.uniforms.tSand = { value: tSand };
+      shader.uniforms.textureScale = { value: 60.0 };
+
+      // Pass world position from vertex to fragment for seamless grid tiling decoupled from UV arrays
+      shader.vertexShader = `
+        varying vec3 vTilePos;
+      ` + shader.vertexShader;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <worldpos_vertex>',
+        `
+        #include <worldpos_vertex>
+        vTilePos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        `
+      );
+
+      // Inject custom texture blending samplers
+      shader.fragmentShader = `
+        uniform sampler2D tGrass;
+        uniform sampler2D tRock;
+        uniform sampler2D tSnow;
+        uniform sampler2D tSand;
+        uniform float textureScale;
+        varying vec3 vTilePos;
+      ` + shader.fragmentShader;
+
+      // Hijack the color calculation to intercept the vertex color weight map WITHOUT multiplying it natively
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <color_fragment>',
+        `
+        // Calculate weighting from the CPU vertex-color emission
+        float wGrass = vColor.r;
+        float wRock = vColor.g;
+        float wSnow = vColor.b;
+        float wSand = clamp(1.0 - (wGrass + wRock + wSnow), 0.0, 1.0);
+
+        vec2 splatUV = vTilePos.xz / textureScale;
+        vec4 texGrass = texture2D(tGrass, splatUV);
+        vec4 texRock  = texture2D(tRock, splatUV);
+        vec4 texSnow  = texture2D(tSnow, splatUV);
+        vec4 texSand  = texture2D(tSand, splatUV);
+
+        // Mix the hyper-realistic textures together natively in real-time
+        vec4 blendedColor = texGrass * wGrass + texRock * wRock + texSnow * wSnow + texSand * wSand;
+        
+        diffuseColor = vec4(blendedColor.rgb, diffuseColor.a);
+        `
+      );
+    };
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.castShadow = true;
@@ -142,9 +210,9 @@ export class Terrain {
       const gradZ = (hD - hU) / (2 * spacing);
       const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
 
-      // Elevation and steepness based coloring
-      const c = this._colorForHeight(h, seaLevel, steepness);
-      col.setXYZ(i, c.r, c.g, c.b);
+      // Elevation and steepness based texturing weights
+      const w = this._weightsForHeight(h, seaLevel, steepness);
+      col.setXYZ(i, w.r, w.g, w.b);
     }
 
     pos.needsUpdate = true;
@@ -182,42 +250,42 @@ export class Terrain {
     }
   }
 
-  _colorForHeight(h, seaLevel, steepness = 0) {
-    const tmp = new THREE.Color();
-    let baseColor;
+  _weightsForHeight(h, seaLevel, steepness = 0) {
+    let r = 0, g = 0, b = 0; // r: grass, g: rock, b: snow (remainder is sand)
     
-    if (h < seaLevel - 4) {
-      baseColor = DEEP_WATER.clone();
-    } else if (h < seaLevel - 1) {
-      tmp.lerpColors(DEEP_WATER, SHALLOW, (h - (seaLevel - 4)) / 3);
-      baseColor = tmp.clone();
-    } else if (h < seaLevel + 0.5) {
-      tmp.lerpColors(SHALLOW, SAND, (h - (seaLevel - 1)) / 1.5);
-      baseColor = tmp.clone();
+    if (h < seaLevel + 0.5) {
+      // Under water -> Sand (leaves r,g,b as 0.0)
     } else if (h < seaLevel + 6) {
-      tmp.lerpColors(SAND, GRASS_LOW, (h - (seaLevel + 0.5)) / 5.5);
-      baseColor = tmp.clone();
-    } else if (h < seaLevel + 15) {
-      tmp.lerpColors(GRASS_LOW, GRASS_HIGH, (h - (seaLevel + 6)) / 9);
-      baseColor = tmp.clone();
-    } else if (h < seaLevel + 28) {
-      tmp.lerpColors(GRASS_HIGH, ROCK, (h - (seaLevel + 15)) / 13);
-      baseColor = tmp.clone();
-    } else if (h < seaLevel + 40) {
-      tmp.lerpColors(ROCK, SNOW, (h - (seaLevel + 28)) / 12);
-      baseColor = tmp.clone();
+      // Sand fading to Grass
+      r = (h - (seaLevel + 0.5)) / 5.5;
+    } else if (h < seaLevel + 12) {
+      // Solid grass (moss)
+      r = 1.0;
+    } else if (h < seaLevel + 22) {
+      // Moss fading directly to Snow (skipping static rock bands)
+      const t = (h - (seaLevel + 12)) / 10;
+      r = 1.0 - t;
+      b = t;
     } else {
-      baseColor = SNOW.clone();
+      // Solid Snow from lower down and all the way up
+      b = 1.0;
     }
 
-    // Overlay exposed rock if heavily angled 
-    if (h > seaLevel + 0.5 && steepness > 0.4) {
-      const steepFactor = Math.min((steepness - 0.4) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
-      tmp.lerpColors(baseColor, ROCK, steepFactor);
-      return tmp;
+    // Steepness override (Exposes rock texture dynamically ONLY on extremely sharp cliffs)
+    if (h > seaLevel + 4 && steepness > 0.75) {
+      const steepFactor = Math.min((steepness - 0.75) / 0.5, 1.0);
+      r *= (1.0 - steepFactor);
+      b *= (1.0 - steepFactor);
+      g = Math.min(1.0, g + steepFactor); 
+
+      // Normalize bounds just safely
+      const sum = r + g + b;
+      if(sum > 1.0) {
+          r /= sum; g /= sum; b /= sum;
+      }
     }
 
-    return baseColor;
+    return { r, g, b };
   }
 
   shiftGlobalHeight(delta) {
