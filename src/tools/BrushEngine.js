@@ -50,7 +50,15 @@ export class BrushEngine {
       const pt = hits[0].point;
       this.intersectionPoint = pt;
       this.cursorMesh.visible = true;
-      this.cursorMesh.position.set(pt.x, pt.y + 0.3, pt.z);
+      
+      if (this.gridMesh) {
+        this.gridMesh.visible = this.painting;
+        if (this.painting) {
+          this._updateTopoMesh();
+        }
+      }
+      
+      this.cursorMesh.position.set(pt.x, pt.y + 0.2, pt.z);
       // scale cursor to match brush radius in world units
       const worldRadius = (this.radius / this.terrain.resolution) * this.terrain.size;
       this.cursorMesh.scale.setScalar(worldRadius);
@@ -88,23 +96,100 @@ export class BrushEngine {
   }
 
   updateCursorColor(color) {
-    this.cursorMesh.material.color.set(color);
+    this.cursorMesh.children.forEach(child => {
+      if (child.material) child.material.color.set(color);
+    });
   }
 
   _buildCursor() {
-    const geo = new THREE.RingGeometry(0.9, 1, 48);
-    geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({
+    const group = new THREE.Group();
+
+    // Ring
+    const ringGeo = new THREE.RingGeometry(0.95, 1, 64);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
       color: 0x4ade80,
       transparent: true,
-      opacity: 0.7,
+      opacity: 1.0, 
       side: THREE.DoubleSide,
       depthTest: false,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.visible = false;
-    mesh.renderOrder = 999;
-    return mesh;
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.renderOrder = 1000;
+    group.add(ringMesh);
+
+    // Topographical Grid Overlay
+    // Use a high-density plane that we can warp to follow the terrain
+    const gridRes = 32;
+    const gridGeo = new THREE.PlaneGeometry(1.9, 1.9, gridRes, gridRes);
+    gridGeo.rotateX(-Math.PI / 2);
+    
+    // Create grid texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 128; i += 32) {
+      ctx.moveTo(i, 0); ctx.lineTo(i, 128);
+      ctx.moveTo(0, i); ctx.lineTo(128, i);
+    }
+    ctx.stroke();
+
+    const gridTex = new THREE.CanvasTexture(canvas);
+    gridTex.wrapS = THREE.RepeatWrapping;
+    gridTex.wrapT = THREE.RepeatWrapping;
+    gridTex.repeat.set(4, 4); 
+
+    const gridMat = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      map: gridTex,
+      transparent: true,
+      opacity: 0.5,
+      depthTest: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    
+    this.gridMesh = new THREE.Mesh(gridGeo, gridMat);
+    this.gridMesh.renderOrder = 999;
+    this.gridMesh.visible = false;
+    group.add(this.gridMesh);
+
+    group.visible = false;
+    return group;
+  }
+
+  _updateTopoMesh() {
+    if (!this.intersectionPoint || !this.gridMesh) return;
+    
+    const pos = this.gridMesh.geometry.attributes.position;
+    const worldRadius = (this.radius / this.terrain.resolution) * this.terrain.size;
+    const centerPt = this.intersectionPoint;
+    const cursorElev = centerPt.y + 0.2; // Match cursorMesh.position offset
+    
+    for (let i = 0; i < pos.count; i++) {
+       // Vertices are initially in [-0.95, 0.95] range
+       const lx = pos.getX(i);
+       const lz = pos.getZ(i);
+       
+       const wx = centerPt.x + lx * worldRadius;
+       const wz = centerPt.z + lz * worldRadius;
+       
+       const h = this.terrain.getInterpolatedHeight(wx, wz);
+       // Height relative to the cursor's anchor position
+       // Divid by worldRadius because the group is scaled by worldRadius
+       const localY = (h - cursorElev) / worldRadius;
+       pos.setY(i, localY + 0.01); 
+    }
+    pos.needsUpdate = true;
   }
 
   _updateMouseFromEvent(e) {
