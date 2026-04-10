@@ -152,6 +152,16 @@ export const TOOLS = {
     isChairlift: true,
     apply() { /* no-op — handled externally */ },
   },
+
+  play: {
+    name: 'Steer Mode',
+    icon: '🏂',
+    color: '#8b5cf6',
+    cursor: 'crosshair',
+    isBrush: false,
+    isPlayer: true,
+    apply() { /* no-op — handled externally */ },
+  },
 };
 
 /**

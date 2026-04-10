@@ -9,6 +9,7 @@ import { TOOLS } from './tools/tools.js';
 import { History } from './history/History.js';
 import { Snow } from './engine/Snow.js';
 import { UI } from './ui/UI.js';
+import { Player } from './engine/Player.js';
 
 // ---- State ----
 let seaLevel = -1;
@@ -28,6 +29,7 @@ const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
 const snow = new Snow(600);
 const history = new History(50);
+const player = new Player(terrain, scene);
 
 scene.add(terrain.mesh);
 scene.add(water.mesh);
@@ -135,6 +137,11 @@ function handleInteractStart(e) {
     skiers.spawn(brush.intersectionPoint.x, brush.intersectionPoint.z);
   }
 
+  if (tool.isPlayer) {
+    player.start(brush.intersectionPoint.x, brush.intersectionPoint.z);
+    return; // Don't block controls later
+  }
+
   if (tool.isChairlift) {
     if (!chairliftStartPoint) {
       chairliftStartPoint = brush.intersectionPoint.clone();
@@ -179,6 +186,12 @@ function animate() {
   skiers.update(dt, seaLevel, chairlifts, isSnowing);
   chairlifts.update(dt);
   snow.update(dt);
+  player.update(dt);
+
+  // Automatically hide the tool cursor ring when driving the Skier around
+  if (player && player.active) {
+     brush.cursorMesh.visible = false;
+  }
 
   water.update(dt);
   scene.render();
