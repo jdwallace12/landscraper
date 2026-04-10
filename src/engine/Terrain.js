@@ -129,8 +129,21 @@ export class Terrain {
       const h = this.heightmap[i];
       pos.setY(i, h);
 
-      // Elevation-based coloring
-      const c = this._colorForHeight(h, seaLevel);
+      const gx = i % res;
+      const gz = Math.floor(i / res);
+      
+      const hL = this.getHeight(gx - 1, gz);
+      const hR = this.getHeight(gx + 1, gz);
+      const hU = this.getHeight(gx, gz - 1);
+      const hD = this.getHeight(gx, gz + 1);
+
+      const spacing = this.size / (res - 1);
+      const gradX = (hR - hL) / (2 * spacing);
+      const gradZ = (hD - hU) / (2 * spacing);
+      const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
+
+      // Elevation and steepness based coloring
+      const c = this._colorForHeight(h, seaLevel, steepness);
       col.setXYZ(i, c.r, c.g, c.b);
     }
 
@@ -169,31 +182,42 @@ export class Terrain {
     }
   }
 
-  _colorForHeight(h, seaLevel) {
+  _colorForHeight(h, seaLevel, steepness = 0) {
     const tmp = new THREE.Color();
+    let baseColor;
+    
     if (h < seaLevel - 4) {
-      return DEEP_WATER.clone();
+      baseColor = DEEP_WATER.clone();
     } else if (h < seaLevel - 1) {
       tmp.lerpColors(DEEP_WATER, SHALLOW, (h - (seaLevel - 4)) / 3);
-      return tmp;
+      baseColor = tmp.clone();
     } else if (h < seaLevel + 0.5) {
       tmp.lerpColors(SHALLOW, SAND, (h - (seaLevel - 1)) / 1.5);
-      return tmp;
+      baseColor = tmp.clone();
     } else if (h < seaLevel + 6) {
       tmp.lerpColors(SAND, GRASS_LOW, (h - (seaLevel + 0.5)) / 5.5);
-      return tmp;
+      baseColor = tmp.clone();
     } else if (h < seaLevel + 15) {
       tmp.lerpColors(GRASS_LOW, GRASS_HIGH, (h - (seaLevel + 6)) / 9);
-      return tmp;
+      baseColor = tmp.clone();
     } else if (h < seaLevel + 28) {
       tmp.lerpColors(GRASS_HIGH, ROCK, (h - (seaLevel + 15)) / 13);
-      return tmp;
+      baseColor = tmp.clone();
     } else if (h < seaLevel + 40) {
       tmp.lerpColors(ROCK, SNOW, (h - (seaLevel + 28)) / 12);
-      return tmp;
+      baseColor = tmp.clone();
     } else {
-      return SNOW.clone();
+      baseColor = SNOW.clone();
     }
+
+    // Overlay exposed rock if heavily angled 
+    if (h > seaLevel + 0.5 && steepness > 0.4) {
+      const steepFactor = Math.min((steepness - 0.4) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
+      tmp.lerpColors(baseColor, ROCK, steepFactor);
+      return tmp;
+    }
+
+    return baseColor;
   }
 
   shiftGlobalHeight(delta) {
