@@ -17,6 +17,7 @@ let currentToolKey = 'raise';
 let treeDensity = 5;
 let chairliftStartPoint = null;
 let isSnowing = false;
+let currentFileHandle = null;
 
 // ---- Init ----
 const canvas = document.getElementById('canvas');
@@ -77,7 +78,7 @@ const ui = new UI({
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },
-  onSave() { doSaveMap(); },
+  onSave(force) { doSaveMap(force); },
   onLoad() { triggerLoadMap(); },
 });
 
@@ -107,10 +108,11 @@ function doReset() {
   trees.clear();
   skiers.clear();
   chairlifts.clear();
+  currentFileHandle = null;
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 
-function doSaveMap() {
+async function doSaveMap(forcePicker = false) {
   const data = {
     heightmap: Array.from(terrain.heightmap),
     seaLevel: seaLevel,
@@ -122,7 +124,33 @@ function doSaveMap() {
     }))
   };
 
-  const jsonStr = JSON.stringify(data);
+  const jsonStr = JSON.stringify(data, null, 2);
+
+  // Try File System Access API
+  if ('showSaveFilePicker' in window) {
+    try {
+      if (!currentFileHandle || forcePicker) {
+        currentFileHandle = await window.showSaveFilePicker({
+          suggestedName: 'landscraper_map.json',
+          types: [{
+            description: 'JSON Files',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+      }
+
+      const writable = await currentFileHandle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      console.log("Map saved successfully to", currentFileHandle.name);
+      return; 
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error("FileSystem API failed or aborted, falling back:", err);
+    }
+  }
+
+  // Fallback to traditional download
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   
@@ -135,7 +163,27 @@ function doSaveMap() {
   URL.revokeObjectURL(url);
 }
 
-function triggerLoadMap() {
+async function triggerLoadMap() {
+  if ('showOpenFilePicker' in window) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'JSON Files',
+          accept: { 'application/json': ['.json'] },
+        }],
+      });
+      currentFileHandle = handle;
+      const file = await handle.getFile();
+      const text = await file.text();
+      loadMapData(JSON.parse(text));
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error("FileSystem API failed, falling back:", err);
+    }
+  }
+
+  // Fallback
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';

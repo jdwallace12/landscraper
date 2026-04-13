@@ -185,8 +185,17 @@ export class UI {
     const saveBtn = document.createElement('button');
     saveBtn.className = 'history-btn';
     saveBtn.innerHTML = '💾 Save';
+    saveBtn.title = 'Saves to current file (Ctrl+S)';
     saveBtn.addEventListener('click', () => {
-      if (this.callbacks.onSave) this.callbacks.onSave();
+      if (this.callbacks.onSave) this.callbacks.onSave(false);
+    });
+
+    const saveAsBtn = document.createElement('button');
+    saveAsBtn.className = 'history-btn';
+    saveAsBtn.innerHTML = '💾 Save As...';
+    saveAsBtn.style.fontSize = '0.75rem'; // Make it slightly smaller to fit
+    saveAsBtn.addEventListener('click', () => {
+      if (this.callbacks.onSave) this.callbacks.onSave(true);
     });
 
     const loadBtn = document.createElement('button');
@@ -197,13 +206,14 @@ export class UI {
     });
 
     saveLoadRow.appendChild(saveBtn);
+    saveLoadRow.appendChild(saveAsBtn);
     saveLoadRow.appendChild(loadBtn);
     sidebar.appendChild(saveLoadRow);
 
     // Keyboard hint
     const hint = document.createElement('div');
     hint.className = 'hint';
-    hint.innerHTML = '<b>Shortcuts</b><br>1-7 Tools · Ctrl+Z Undo<br>Ctrl+Shift+Z Redo · [ ] Brush Size';
+    hint.innerHTML = '<b>Shortcuts</b><br>1-7 Tools · Ctrl+Z Undo<br>Ctrl+S Save · [ ] Brush Size';
     sidebar.appendChild(hint);
   }
 
@@ -268,6 +278,11 @@ export class UI {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         this.callbacks.onUndo();
+      }
+      // Save Shortcut
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        this.callbacks.onSave();
       }
       // Brush size with [ ]
       if (e.key === '[') {
