@@ -52,7 +52,8 @@ export class Trees {
       if (height < -0.5 || height > 30) continue;
 
       // Pick a random variant
-      const variant = TREE_VARIANTS[Math.floor(Math.random() * TREE_VARIANTS.length)];
+      const variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
+      const variant = TREE_VARIANTS[variantIdx];
       const scale = 0.3 + Math.random() * 0.45;
       const tree = this._createTree(variant, scale);
 
@@ -60,7 +61,7 @@ export class Trees {
       tree.rotation.y = Math.random() * Math.PI * 2;
 
       this.group.add(tree);
-      this.trees.push({ mesh: tree, worldX: tx, worldZ: tz });
+      this.trees.push({ mesh: tree, worldX: tx, worldZ: tz, scale, variantIdx });
     }
   }
 
@@ -101,6 +102,24 @@ export class Trees {
       });
     }
     this.trees = [];
+  }
+
+  /** Load trees from serialized data array */
+  loadTrees(treesData) {
+    for (const t of treesData) {
+      const { gx, gz } = this.terrain.worldToGrid(t.x, t.z);
+      if (gx < 0 || gx >= this.terrain.resolution || gz < 0 || gz >= this.terrain.resolution) continue;
+      const height = this.terrain.getHeight(gx, gz);
+
+      const variant = TREE_VARIANTS[t.variantIdx];
+      const tree = this._createTree(variant, t.scale);
+
+      tree.position.set(t.x, height, t.z);
+      tree.rotation.y = Math.random() * Math.PI * 2;
+
+      this.group.add(tree);
+      this.trees.push({ mesh: tree, worldX: t.x, worldZ: t.z, scale: t.scale, variantIdx: t.variantIdx });
+    }
   }
 
   /** Get the total tree count */

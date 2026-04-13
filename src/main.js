@@ -77,6 +77,8 @@ const ui = new UI({
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },
+  onSave() { doSaveMap(); },
+  onLoad() { triggerLoadMap(); },
 });
 
 function doUndo() {
@@ -105,6 +107,94 @@ function doReset() {
   trees.clear();
   skiers.clear();
   chairlifts.clear();
+  ui.setUndoRedoState(history.canUndo(), history.canRedo());
+}
+
+function doSaveMap() {
+  const data = {
+    heightmap: Array.from(terrain.heightmap),
+    seaLevel: seaLevel,
+    baseElevation: currentBaseElevation,
+    trees: trees.trees.map(t => ({ x: t.worldX, z: t.worldZ, scale: t.scale, variantIdx: t.variantIdx })),
+    chairlifts: chairlifts.lines.map(l => ({ 
+      p1: { x: l.p1.x, y: l.p1.y, z: l.p1.z }, 
+      p2: { x: l.p2.x, y: l.p2.y, z: l.p2.z } 
+    }))
+  };
+
+  const jsonStr = JSON.stringify(data);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'landscraper_map.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function triggerLoadMap() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = re => {
+      try {
+        const data = JSON.parse(re.target.result);
+        loadMapData(data);
+      } catch (err) {
+        console.error("Failed to load map:", err);
+        alert("Invalid map file!");
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function loadMapData(data) {
+  if (!data || !data.heightmap) return;
+
+  history.push(terrain.snapshot()); // Save old state for undo
+
+  // Restore Terrain
+  terrain.heightmap.set(data.heightmap);
+  
+  // Restore Settings
+  seaLevel = data.seaLevel ?? -1;
+  currentBaseElevation = data.baseElevation ?? 0;
+  
+  ui.setSeaLevelSlider(seaLevel);
+  ui.setBaseElevationSlider(currentBaseElevation);
+  
+  water.setSeaLevel(seaLevel);
+  terrain.updateMesh(seaLevel);
+
+  // Clear existing items
+  trees.clear();
+  chairlifts.clear();
+  skiers.clear();
+  
+  // Restore Trees
+  if (data.trees) {
+    trees.loadTrees(data.trees);
+  }
+
+  // Restore Chairlifts
+  if (data.chairlifts) {
+    data.chairlifts.forEach(lift => {
+      chairlifts.buildLine(
+        new THREE.Vector3(lift.p1.x, lift.p1.y, lift.p1.z),
+        new THREE.Vector3(lift.p2.x, lift.p2.y, lift.p2.z)
+      );
+    });
+  }
+
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 

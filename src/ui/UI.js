@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe, onToggleSnow }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onTreeDensity, onToggleWireframe, onToggleSnow };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -11,6 +11,20 @@ export class UI {
   setUndoRedoState(canUndo, canRedo) {
     this.undoBtn.classList.toggle('disabled', !canUndo);
     this.redoBtn.classList.toggle('disabled', !canRedo);
+  }
+
+  setSeaLevelSlider(val) {
+    this.seaLevelSlider.value = val;
+    if (this.seaLevelSlider.valSpan) {
+      this.seaLevelSlider.valSpan.textContent = Number.isInteger(val) ? val : parseFloat(val).toFixed(2);
+    }
+  }
+
+  setBaseElevationSlider(val) {
+    this.baseElevationSlider.value = val;
+    if (this.baseElevationSlider.valSpan) {
+      this.baseElevationSlider.valSpan.textContent = Number.isInteger(val) ? val : parseFloat(val).toFixed(2);
+    }
   }
 
   _build() {
@@ -162,6 +176,30 @@ export class UI {
     });
     sidebar.appendChild(resetBtn);
 
+    sidebar.appendChild(this._divider());
+
+    // Save / Load Map
+    const saveLoadRow = document.createElement('div');
+    saveLoadRow.className = 'history-row';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'history-btn';
+    saveBtn.innerHTML = '💾 Save';
+    saveBtn.addEventListener('click', () => {
+      if (this.callbacks.onSave) this.callbacks.onSave();
+    });
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'history-btn';
+    loadBtn.innerHTML = '📂 Load';
+    loadBtn.addEventListener('click', () => {
+      if (this.callbacks.onLoad) this.callbacks.onLoad();
+    });
+
+    saveLoadRow.appendChild(saveBtn);
+    saveLoadRow.appendChild(loadBtn);
+    sidebar.appendChild(saveLoadRow);
+
     // Keyboard hint
     const hint = document.createElement('div');
     hint.className = 'hint';
@@ -198,6 +236,8 @@ export class UI {
       valSpan.textContent = Number.isInteger(v) ? v : v.toFixed(2);
       onChange(v);
     });
+
+    input.valSpan = valSpan;
 
     wrap.appendChild(lbl);
     wrap.appendChild(input);
