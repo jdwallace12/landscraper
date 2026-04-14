@@ -138,7 +138,7 @@ export class Chairlifts {
   }
 
   update(dt) {
-    const chairSpeedPixelsPerSecond = 1.5; // world units per sec
+    const chairSpeedPixelsPerSecond = 3.0; // world units per sec
 
     for (const line of this.lines) {
       const progressSpeed = chairSpeedPixelsPerSecond / (line.totalLength * 2);

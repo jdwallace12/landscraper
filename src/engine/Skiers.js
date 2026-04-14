@@ -10,6 +10,7 @@ export class Skiers {
     this.terrain = terrain;
     this.group = new THREE.Group();
     this.skiers = []; // { mesh, wx, wz, vx, vz, active, trail }
+    this._chairlifts = null; // cached reference for attraction forces
     this._tmpColor = new THREE.Color();
   }
 
@@ -43,14 +44,16 @@ export class Skiers {
       targetStation: null,
       targetLine: null,
       chair: null,
+      carvePhase: Math.random() * Math.PI * 2, // unique carve offset so skiers don't turn in sync
     });
   }
 
   /** Update all skiers — call each frame with deltaTime, seaLevel, and chairlifts ref */
   update(dt, seaLevel, chairlifts, isSnowing = false) {
     const gravity = 10.0;
-    const friction = 0.97;
+    const friction = 0.98;
     const minSpeed = 0.001;
+    this._chairlifts = chairlifts;
     const res = this.terrain.resolution;
     const size = this.terrain.size;
     const half = size / 2;
@@ -78,25 +81,19 @@ export class Skiers {
 
       if (!s.active) continue;
 
-      // Get grid position
-      const { gx, gz } = this.terrain.worldToGrid(s.wx, s.wz);
-      if (gx <= 1 || gx >= res - 2 || gz <= 1 || gz >= res - 2) {
-        s.active = false;
-        s.mesh.visible = false;
-        continue;
-      }
-
+      // Walking, waiting, and riding states handle their own logic
+      // Grid boundary check only applies to actively skiing
       if (s.state === 'walking') {
         const dx = s.targetStation.x - s.wx;
         const dz = s.targetStation.z - s.wz;
         const dist = Math.sqrt(dx * dx + dz * dz);
         
-        if (dist < 2.0) {
+        if (dist < 4.0) {
           s.state = 'waiting';
           s.mesh.visible = false; // Hide inside the base station building!
         } else {
-          s.wx += (dx / dist) * dt * 2.0; // Walk speed
-          s.wz += (dz / dist) * dt * 2.0;
+          s.wx += (dx / dist) * dt * 8.0; // Walk speed
+          s.wz += (dz / dist) * dt * 8.0;
           const { gx: wgx, gz: wgz } = this.terrain.worldToGrid(s.wx, s.wz);
           const newH = this.terrain.getHeight(wgx, wgz);
           s.mesh.position.set(s.wx, newH + 0.15, s.wz);
@@ -109,6 +106,8 @@ export class Skiers {
         // Look for an empty chair arriving at the base
         const isP1Base = s.targetLine.p1.y < s.targetLine.p2.y;
         const baseProgress = isP1Base ? 0.0 : 0.5;
+        let bestChair = null;
+        let bestPDiff = 0.03; // Wider window for boarding at the turnaround
         
         for (const chair of s.targetLine.chairs) {
            if (chair.passenger) continue;
@@ -116,13 +115,18 @@ export class Skiers {
            let pDiff = Math.abs(chair.progress - baseProgress);
            if (pDiff > 0.5) pDiff = 1.0 - pDiff;
            
-           if (pDiff < 0.08) { // Close enough to board
-              chair.passenger = s;
-              s.chair = chair;
-              s.state = 'riding';
-              s.mesh.visible = true;
-              break;
+           if (pDiff < bestPDiff) {
+              bestPDiff = pDiff;
+              bestChair = chair;
            }
+        }
+        
+        if (bestChair) {
+           bestChair.passenger = s;
+           s.chair = bestChair;
+           s.state = 'riding';
+           
+           s.mesh.visible = true;
         }
         continue;
       }
@@ -130,9 +134,14 @@ export class Skiers {
       if (s.state === 'riding') {
          const p = s.chair.mesh.position;
          const chairAngle = s.chair.mesh.rotation.y;
-         // sit sideways
-         s.mesh.position.set(p.x, p.y - 1.2, p.z);
+         // sit sideways — keep wx/wz in sync with chair
+         s.wx = p.x;
+         s.wz = p.z;
+         // Sit a bit higher and more forward to ensure they aren't hidden inside the geometry
+         s.mesh.position.set(p.x, p.y - 0.5, p.z);
          s.mesh.rotation.y = chairAngle + Math.PI / 2;
+         s.mesh.scale.setScalar(1.0); // Make them larger temporarily!
+
          
          const isP1Base = s.targetLine.p1.y < s.targetLine.p2.y;
          const peakProgress = isP1Base ? 0.5 : 0.0; // Dismount at peak
@@ -156,25 +165,123 @@ export class Skiers {
             // push off
             s.wx += Math.cos(chairAngle) * 3;
             s.wz -= Math.sin(chairAngle) * 3;
+            s.mesh.scale.setScalar(0.7); // Scale back to normal
          }
          continue;
       }
 
-      // --- Skiing State ---
+      // --- Skiing State from here on ---
 
-      // Compute gradient (steepest descent)
-      const hL = this.terrain.getHeight(gx - 1, gz);
-      const hR = this.terrain.getHeight(gx + 1, gz);
-      const hU = this.terrain.getHeight(gx, gz - 1);
-      const hD = this.terrain.getHeight(gx, gz + 1);
+      // Get grid position (only for skiing state)
+      const { gx, gz } = this.terrain.worldToGrid(s.wx, s.wz);
+      if (gx <= 1 || gx >= res - 2 || gz <= 1 || gz >= res - 2) {
+        s.active = false;
+        s.mesh.visible = false;
+        continue;
+      }
 
+      // Compute gradient using wider sampling (3-cell radius) to smooth over rough terrain
       const cellSize = size / (res - 1);
-      const gradX = (hR - hL) / (2 * cellSize);
-      const gradZ = (hD - hU) / (2 * cellSize);
+      const sampleR = 3; // sample radius in grid cells
+      const hL = this.terrain.getHeight(Math.max(0, gx - sampleR), gz);
+      const hR = this.terrain.getHeight(Math.min(res - 1, gx + sampleR), gz);
+      const hU = this.terrain.getHeight(gx, Math.max(0, gz - sampleR));
+      const hD = this.terrain.getHeight(gx, Math.min(res - 1, gz + sampleR));
 
-      // Apply gravity along slope
-      s.vx -= gradX * gravity * dt;
-      s.vz -= gradZ * gravity * dt;
+      const gradX = (hR - hL) / (2 * sampleR * cellSize);
+      const gradZ = (hD - hU) / (2 * sampleR * cellSize);
+
+      // Find nearest chairlift base first (needed to dampen gravity near bases)
+      let nearestBaseDist = Infinity;
+      let nearestBase = null;
+      if (chairlifts && chairlifts.lines.length > 0) {
+        let nearestDistSq = Infinity;
+        for (const line of chairlifts.lines) {
+          const base = line.p1.y < line.p2.y ? line.p1 : line.p2;
+          const dbx = base.x - s.wx;
+          const dbz = base.z - s.wz;
+          const dSq = dbx * dbx + dbz * dbz;
+          if (dSq < nearestDistSq) {
+            nearestDistSq = dSq;
+            nearestBase = base;
+          }
+        }
+        if (nearestBase) {
+          nearestBaseDist = Math.sqrt(nearestDistSq);
+        }
+      }
+
+      // Apply gravity along slope — dampen when close to a chairlift base
+      // so skiers can overpower the slope to reach the lift
+      const gravityDampen = nearestBaseDist < 30.0
+        ? Math.max(0.05, nearestBaseDist / 30.0)
+        : 1.0;
+      s.vx -= gradX * gravity * gravityDampen * dt;
+      s.vz -= gradZ * gravity * gravityDampen * dt;
+
+      // Chairlift base attraction force while skiing
+      if (nearestBase && nearestBaseDist < 80.0 && nearestBaseDist > 1.0) {
+        
+        // If they physically reached the base during skiing, stop and get in line!
+        if (nearestBaseDist < 4.0) {
+           this._handleStop(s, chairlifts);
+           continue;
+        }
+
+        // Strong attraction that increases as skier gets closer
+        const attractStrength = 4.0 * (1.0 - nearestBaseDist / 80.0);
+        const adx = (nearestBase.x - s.wx) / nearestBaseDist;
+        const adz = (nearestBase.z - s.wz) / nearestBaseDist;
+        s.vx += adx * attractStrength * dt;
+        s.vz += adz * attractStrength * dt;
+      }
+
+      // Skier-to-skier repulsion: spread out to find fresh snow
+      // BUT disable near chairlift bases so skiers can converge to board
+      if (nearestBaseDist > 25.0) {
+        const repelRadius = 15.0;
+        for (const other of this.skiers) {
+          if (other === s || !other.active || other.state !== 'skiing') continue;
+          const dx = s.wx - other.wx;
+          const dz = s.wz - other.wz;
+          const distSq = dx * dx + dz * dz;
+          if (distSq < repelRadius * repelRadius && distSq > 0.01) {
+            const dist = Math.sqrt(distSq);
+            const repelStrength = 2.0 * (1.0 - dist / repelRadius);
+            s.vx += (dx / dist) * repelStrength * dt;
+            s.vz += (dz / dist) * repelStrength * dt;
+          }
+        }
+      }
+
+      // Snow-seeking traverse: probe for snow-covered terrain and bias toward it
+      const currentH = this.terrain.getInterpolatedHeight(s.wx, s.wz);
+      const snowLine = seaLevel + 28;
+      if (currentH < snowLine + 8) {
+        // Probe 8 directions for higher/snowier terrain
+        const probeDistWorld = 12.0;
+        let bestDx = 0, bestDz = 0, bestScore = -Infinity;
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+          const px = s.wx + Math.cos(angle) * probeDistWorld;
+          const pz = s.wz + Math.sin(angle) * probeDistWorld;
+          const ph = this.terrain.getInterpolatedHeight(px, pz);
+          // Score: prefer terrain near/above snow line, penalize too-steep uphill
+          const heightAboveSnow = ph - snowLine;
+          const climbNeeded = Math.max(0, ph - currentH);
+          const score = heightAboveSnow * 1.0 - climbNeeded * 0.5;
+          if (score > bestScore) {
+            bestScore = score;
+            bestDx = Math.cos(angle);
+            bestDz = Math.sin(angle);
+          }
+        }
+        if (bestScore > -5) {
+          // Gentle bias toward snowier terrain
+          const traverseStrength = 0.8;
+          s.vx += bestDx * traverseStrength * dt;
+          s.vz += bestDz * traverseStrength * dt;
+        }
+      }
 
       // Friction
       s.vx *= friction;
@@ -182,10 +289,24 @@ export class Skiers {
 
       s.speed = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
 
-      // Stop if too slow and on flat ground
-      if (s.speed < minSpeed && Math.abs(gradX) < 0.001 && Math.abs(gradZ) < 0.001) {
-        this._handleStop(s, chairlifts);
-        continue;
+      // Minimum downhill nudge: if nearly stopped but on a slope, give a small push
+      const gradMag = Math.sqrt(gradX * gradX + gradZ * gradZ);
+      if (s.speed < 0.05 && gradMag > 0.005) {
+        s.vx -= (gradX / gradMag) * 0.1;
+        s.vz -= (gradZ / gradMag) * 0.1;
+        s.speed = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+      }
+
+      // Stuck detection: require being slow for 3 seconds before fully stopping
+      if (s.speed < minSpeed && gradMag < 0.003) {
+        s.stuckTime = (s.stuckTime || 0) + dt;
+        if (s.stuckTime > 3.0) {
+          s.stuckTime = 0;
+          this._handleStop(s, chairlifts);
+          continue;
+        }
+      } else {
+        s.stuckTime = 0;
       }
 
       s.timeAlive += dt;
@@ -196,9 +317,9 @@ export class Skiers {
         // perpendicular to [vx, vz] is [-vz, vx]
         const px = -s.vz / s.speed;
         const pz = s.vx / s.speed;
-        // Wider oscillation
+        // Wider oscillation with unique phase per skier
         const carveStrength = Math.min(s.speed * 1.0, 4.0); 
-        const carveForce = Math.sin(s.timeAlive * 3.0) * carveStrength;
+        const carveForce = Math.sin(s.timeAlive * 3.0 + s.carvePhase) * carveStrength;
         carveX = px * carveForce;
         carveZ = pz * carveForce;
       }
