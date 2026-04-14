@@ -156,21 +156,32 @@ export class Terrain {
 
   _generateInitialTerrain() {
     const res = this.resolution;
+
+    // Random offsets to make each map unique
+    const pX1 = Math.random() * Math.PI * 2;
+    const pZ1 = Math.random() * Math.PI * 2;
+    const pX2 = Math.random() * Math.PI * 2;
+    const pZ2 = Math.random() * Math.PI * 2;
+    const pX3 = Math.random() * Math.PI * 2;
+    const pZ3 = Math.random() * Math.PI * 2;
+    const cxOffset = (Math.random() - 0.5) * 0.3;
+    const czOffset = (Math.random() - 0.5) * 0.3;
+
     for (let z = 0; z < res; z++) {
       for (let x = 0; x < res; x++) {
         const nx = x / res;
         const nz = z / res;
-        // Huge central mountain peak
-        const cx = nx - 0.5;
-        const cz = nz - 0.5;
+        // Huge central mountain peak, randomly offset
+        const cx = nx - 0.5 + cxOffset;
+        const cz = nz - 0.5 + czOffset;
         const distFromCenterSq = cx*cx + cz*cz;
         const mountainShape = Math.max(0, 1.0 - Math.sqrt(distFromCenterSq) * 1.8);
         let h = mountainShape * 45.0;
 
-        // More aggressive, high-frequency ridges
-        h += Math.sin(nx * 5.0 * Math.PI) * Math.cos(nz * 4.0 * Math.PI) * 8.0;
-        h += Math.sin(nx * 12.5 * Math.PI + 1.3) * Math.cos(nz * 10.2 * Math.PI + 0.7) * 4.5;
-        h += Math.sin(nx * 26.0 * Math.PI + 2.7) * Math.cos(nz * 22.0 * Math.PI + 4.1) * 2.0;
+        // More aggressive, high-frequency ridges with random phase shifts
+        h += Math.sin(nx * 5.0 * Math.PI + pX1) * Math.cos(nz * 4.0 * Math.PI + pZ1) * 8.0;
+        h += Math.sin(nx * 12.5 * Math.PI + pX2) * Math.cos(nz * 10.2 * Math.PI + pZ2) * 4.5;
+        h += Math.sin(nx * 26.0 * Math.PI + pX3) * Math.cos(nz * 22.0 * Math.PI + pZ3) * 2.0;
 
         // Sharper edge falloff so it meets water
         const edgeX = 1 - Math.pow(2 * nx - 1, 6);
