@@ -44,18 +44,32 @@ export class SceneManager {
     // Clock
     this.clock = new THREE.Clock();
 
-    // Custom vertical panning
+    // Custom vertical panning and Shift acceleration
     window.addEventListener('keydown', (e) => {
       // Don't intercept if typing in an input
       if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
 
-      const verticalSpeed = 8.0;
+      // Accelerate arrow keys lateral panning
+      if (e.key === 'Shift') {
+        this.controls.keyPanSpeed = 150.0;
+      }
+
+      const verticalSpeed = e.shiftKey ? 24.0 : 8.0;
       if (e.key.toLowerCase() === 'w') {
         this.camera.position.y += verticalSpeed;
         this.controls.target.y += verticalSpeed;
       } else if (e.key.toLowerCase() === 's') {
         this.camera.position.y -= verticalSpeed;
         this.controls.target.y -= verticalSpeed;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
+      
+      // Reset lateral panning speed
+      if (e.key === 'Shift') {
+        this.controls.keyPanSpeed = 50.0;
       }
     });
   }

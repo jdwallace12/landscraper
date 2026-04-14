@@ -210,10 +210,20 @@ export class UI {
     saveLoadRow.appendChild(loadBtn);
     sidebar.appendChild(saveLoadRow);
 
-    // Keyboard hint
+    // Instructions & Shortcuts
     const hint = document.createElement('div');
     hint.className = 'hint';
-    hint.innerHTML = '<b>Shortcuts</b><br>1-7 Tools · Ctrl+Z Undo<br>Ctrl+S Save · [ ] Brush Size';
+    hint.innerHTML = `
+      <b>Camera Navigation</b><br>
+      • <b>Arrows:</b> Pan Lateral<br>
+      • <b>W / S:</b> Pan Up/Down<br>
+      • <b>Hold Shift:</b> Rotate<br>
+      • <b>Left/Right Drag:</b> Pan<br><br>
+      <b>Building & Tools</b><br>
+      • <b>Chairlift Tool:</b> Click once for base, then click again for top<br>
+      • <b>Shortcuts:</b> 1-7 Tools · [ ] Brush Size<br>
+      • <b>System:</b> Ctrl+Z Undo · Ctrl+S Save
+    `;
     sidebar.appendChild(hint);
   }
 

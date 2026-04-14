@@ -275,10 +275,10 @@ input[type="range"]::-moz-range-thumb {
 .hint {
   margin-top: auto;
   padding-top: 8px;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   color: var(--text-dim);
   line-height: 1.6;
-  text-align: center;
+  text-align: left;
 }
 .hint b {
   color: var(--text);
