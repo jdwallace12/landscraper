@@ -182,11 +182,11 @@ export class UI {
     const saveLoadRow = document.createElement('div');
     saveLoadRow.className = 'history-row';
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'history-btn';
-    saveBtn.innerHTML = '💾 Save';
-    saveBtn.title = 'Saves to current file (Ctrl+S)';
-    saveBtn.addEventListener('click', () => {
+    this.saveBtn = document.createElement('button');
+    this.saveBtn.className = 'history-btn';
+    this.saveBtn.innerHTML = '💾 Save';
+    this.saveBtn.title = 'Saves to current file (Ctrl+S)';
+    this.saveBtn.addEventListener('click', () => {
       if (this.callbacks.onSave) this.callbacks.onSave(false);
     });
 
@@ -205,7 +205,7 @@ export class UI {
       if (this.callbacks.onLoad) this.callbacks.onLoad();
     });
 
-    saveLoadRow.appendChild(saveBtn);
+    saveLoadRow.appendChild(this.saveBtn);
     saveLoadRow.appendChild(saveAsBtn);
     saveLoadRow.appendChild(loadBtn);
     sidebar.appendChild(saveLoadRow);
@@ -296,5 +296,15 @@ export class UI {
         this.radiusSlider.dispatchEvent(new Event('input'));
       }
     });
+  }
+
+  showSaveSuccess() {
+    if (this.saveBtn) {
+      const oldText = this.saveBtn.innerHTML;
+      this.saveBtn.innerHTML = '✅ Saved!';
+      setTimeout(() => {
+        this.saveBtn.innerHTML = oldText;
+      }, 2000);
+    }
   }
 }

@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { SceneManager } from './engine/SceneManager.js';
 import { Terrain } from './engine/Terrain.js';
 import { Water } from './engine/Water.js';
@@ -144,6 +145,8 @@ async function doSaveMap(forcePicker = false) {
       await writable.write(jsonStr);
       await writable.close();
       console.log("Map saved successfully to", currentFileHandle.name);
+      console.log("Exported Chairlifts: ", data.chairlifts);
+      ui.showSaveSuccess();
       return; 
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -162,6 +165,8 @@ async function doSaveMap(forcePicker = false) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  console.log("Exported Chairlifts: ", data.chairlifts);
+  ui.showSaveSuccess();
 }
 
 async function triggerLoadMap() {
