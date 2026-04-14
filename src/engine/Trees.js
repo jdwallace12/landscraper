@@ -33,7 +33,7 @@ export class Trees {
   }
 
   /** Place a cluster of trees around the given world position */
-  placeCluster(worldX, worldZ, radius, density) {
+  placeCluster(worldX, worldZ, radius, density, seaLevel = 0) {
     const count = Math.max(1, Math.floor(density * radius * 0.6));
 
     for (let i = 0; i < count; i++) {
@@ -48,14 +48,15 @@ export class Trees {
       if (gx < 0 || gx >= this.terrain.resolution || gz < 0 || gz >= this.terrain.resolution) continue;
       const height = this.terrain.getHeight(gx, gz);
 
-      // Don't place trees in water or on steep snow peaks
-      if (height < -0.5 || height > 30) continue;
+      // Don't place trees in water (allow on snow now!)
+      if (height < -0.5) continue;
 
       // Pick a random variant
       const variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
       const variant = TREE_VARIANTS[variantIdx];
       const scale = 0.3 + Math.random() * 0.45;
-      const tree = this._createTree(variant, scale);
+      const isSnowy = height >= (seaLevel + 28);
+      const tree = this._createTree(variant, scale, isSnowy);
 
       tree.position.set(tx, height, tz);
       tree.rotation.y = Math.random() * Math.PI * 2;
@@ -84,11 +85,22 @@ export class Trees {
   }
 
   /** Update tree Y positions after terrain changes */
-  updatePositions() {
+  updatePositions(seaLevel = 0) {
     for (const t of this.trees) {
       const { gx, gz } = this.terrain.worldToGrid(t.worldX, t.worldZ);
       const h = this.terrain.getHeight(gx, gz);
       t.mesh.position.y = h;
+      
+      const isSnowy = h >= (seaLevel + 28);
+      const targetColor = isSnowy ? 0xeaeafa : TREE_VARIANTS[t.variantIdx].color;
+      
+      t.mesh.traverse(child => {
+        if (child.material && child.material !== this.trunkMaterial) {
+          if (child.material.color.getHex() !== targetColor) {
+            child.material.color.setHex(targetColor);
+          }
+        }
+      });
     }
   }
 
@@ -105,14 +117,15 @@ export class Trees {
   }
 
   /** Load trees from serialized data array */
-  loadTrees(treesData) {
+  loadTrees(treesData, seaLevel = 0) {
     for (const t of treesData) {
       const { gx, gz } = this.terrain.worldToGrid(t.x, t.z);
       if (gx < 0 || gx >= this.terrain.resolution || gz < 0 || gz >= this.terrain.resolution) continue;
       const height = this.terrain.getHeight(gx, gz);
 
       const variant = TREE_VARIANTS[t.variantIdx];
-      const tree = this._createTree(variant, t.scale);
+      const isSnowy = height >= (seaLevel + 28);
+      const tree = this._createTree(variant, t.scale, isSnowy);
 
       tree.position.set(t.x, height, t.z);
       tree.rotation.y = Math.random() * Math.PI * 2;
@@ -127,7 +140,7 @@ export class Trees {
     return this.trees.length;
   }
 
-  _createTree(variant, scale) {
+  _createTree(variant, scale, isSnowy = false) {
     const group = new THREE.Group();
 
     // Trunk
@@ -139,7 +152,7 @@ export class Trees {
 
     // Crown
     const crownMat = new THREE.MeshStandardMaterial({
-      color: variant.color,
+      color: isSnowy ? 0xeaeafa : variant.color,
       roughness: 0.8,
       metalness: 0.0,
       flatShading: true,

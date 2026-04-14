@@ -60,13 +60,14 @@ const ui = new UI({
       currentBaseElevation = v;
       terrain.shiftGlobalHeight(delta);
       terrain.updateMesh(seaLevel);
-      trees.updatePositions();
+      trees.updatePositions(seaLevel);
     }
   },
   onSeaLevel(v) {
     seaLevel = v;
     water.setSeaLevel(v);
     terrain.updateMesh(seaLevel);
+    trees.updatePositions(seaLevel);
   },
   onToggleWireframe(checked) {
     terrain.material.wireframe = checked;
@@ -87,7 +88,7 @@ function doUndo() {
   if (snap) {
     terrain.restore(snap);
     terrain.updateMesh(seaLevel);
-    trees.updatePositions();
+    trees.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -97,7 +98,7 @@ function doRedo() {
   if (snap) {
     terrain.restore(snap);
     terrain.updateMesh(seaLevel);
-    trees.updatePositions();
+    trees.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -230,7 +231,7 @@ function loadMapData(data) {
   
   // Restore Trees
   if (data.trees) {
-    trees.loadTrees(data.trees);
+    trees.loadTrees(data.trees, seaLevel);
   }
 
   // Restore Chairlifts
@@ -261,7 +262,7 @@ function handleInteractStart(e) {
 
   if (tool.isTree) {
     const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
-    trees.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity);
+    trees.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity, seaLevel);
   }
 
   if (tool.isTreeClear) {
@@ -311,7 +312,7 @@ function animate() {
 
   const modified = brush.update(seaLevel);
   if (modified) {
-    trees.updatePositions();
+    trees.updatePositions(seaLevel);
   }
 
   skiers.update(dt, seaLevel, chairlifts, isSnowing);
