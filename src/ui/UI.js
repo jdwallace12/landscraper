@@ -221,7 +221,7 @@ export class UI {
       • <b>Left/Right Drag:</b> Pan<br><br>
       <b>Building & Tools</b><br>
       • <b>Chairlift Tool:</b> Click once for base, then click again for top<br>
-      • <b>Shortcuts:</b> 1-7 Tools · [ ] Size · ⌘[ ] Strength<br>
+      • <b>Shortcuts:</b> 0-9 Tools · [ ] Size · ⌘[ ] Strength<br>
       • <b>System:</b> Ctrl+Z Undo · Ctrl+S Save
     `;
     sidebar.appendChild(hint);
