@@ -45,6 +45,8 @@ export class Skiers {
       targetLine: null,
       chair: null,
       carvePhase: Math.random() * Math.PI * 2, // unique carve offset so skiers don't turn in sync
+      traverseTimeLeft: 0,
+      traverseDir: 1,
     });
   }
 
@@ -162,9 +164,22 @@ export class Skiers {
             s.trailPoints = [];
             s.trail.geometry.setDrawRange(0, 0);
 
+            // Randomly choose left or right (-1 or 1)
+            const sideOffset = Math.random() < 0.5 ? 1 : -1;
+            const pushAngle = chairAngle + sideOffset * 1.0; // Angled to the side (~60 degrees)
+
             // push off
-            s.wx += Math.cos(chairAngle) * 3;
-            s.wz -= Math.sin(chairAngle) * 3;
+            s.wx += Math.cos(pushAngle) * 3;
+            s.wz -= Math.sin(pushAngle) * 3;
+            
+            // Give them a slight initial velocity in that direction
+            s.vx = Math.cos(pushAngle) * 4;
+            s.vz = -Math.sin(pushAngle) * 4;
+
+            // Start skiing straight, they will only traverse if they get too close to others
+            s.traverseTimeLeft = 0; 
+            s.traverseDir = sideOffset;
+            
             s.mesh.scale.setScalar(0.7); // Scale back to normal
          }
          continue;
@@ -216,8 +231,31 @@ export class Skiers {
       const gravityDampen = nearestBaseDist < 30.0
         ? Math.max(0.05, nearestBaseDist / 30.0)
         : 1.0;
-      s.vx -= gradX * gravity * gravityDampen * dt;
-      s.vz -= gradZ * gravity * gravityDampen * dt;
+
+      if (s.traverseTimeLeft > 0) {
+        s.traverseTimeLeft -= dt;
+
+        // The gradient vector is (gradX, gradZ), so downhill is (-gradX, -gradZ).
+        // Orthogonal (contour line) depends on traverseDir.
+        const contourX = gradZ * s.traverseDir;
+        const contourZ = -gradX * s.traverseDir;
+        const contourLen = Math.sqrt(contourX * contourX + contourZ * contourZ) || 1;
+        
+        // Push along the contour to traverse (cut)
+        const traverseForceMag = 10.0; 
+        s.vx += (contourX / contourLen) * traverseForceMag * dt;
+        s.vz += (contourZ / contourLen) * traverseForceMag * dt;
+        
+        // Dampen the downhill gravity slightly during the cut so it's a diagonal sweep
+        // Keeping this at 0.8 means the slope continues to pull them mostly downwards
+        s.vx -= gradX * gravity * gravityDampen * 0.8 * dt;
+        s.vz -= gradZ * gravity * gravityDampen * 0.8 * dt;
+      } else {
+        // Continue counting down into negative numbers to act as a cooldown timer
+        s.traverseTimeLeft -= dt; 
+        s.vx -= gradX * gravity * gravityDampen * dt;
+        s.vz -= gradZ * gravity * gravityDampen * dt;
+      }
 
       // Chairlift base attraction force while skiing
       if (nearestBase && nearestBaseDist < 80.0 && nearestBaseDist > 1.0) {
@@ -247,7 +285,8 @@ export class Skiers {
           const distSq = dx * dx + dz * dz;
           if (distSq < repelRadius * repelRadius && distSq > 0.01) {
             const dist = Math.sqrt(distSq);
-            const repelStrength = 2.0 * (1.0 - dist / repelRadius);
+            // Stronger, smoother repulsion to keep them in their own lanes without suddenly cutting
+            const repelStrength = 6.0 * (1.0 - dist / repelRadius);
             s.vx += (dx / dist) * repelStrength * dt;
             s.vz += (dz / dist) * repelStrength * dt;
           }
@@ -317,8 +356,8 @@ export class Skiers {
         // perpendicular to [vx, vz] is [-vz, vx]
         const px = -s.vz / s.speed;
         const pz = s.vx / s.speed;
-        // Wider oscillation with unique phase per skier
-        const carveStrength = Math.min(s.speed * 1.0, 4.0); 
+        // Tighter, narrower oscillation to prevent path crossing
+        const carveStrength = Math.min(s.speed * 0.8, 2.5); 
         const carveForce = Math.sin(s.timeAlive * 3.0 + s.carvePhase) * carveStrength;
         carveX = px * carveForce;
         carveZ = pz * carveForce;
