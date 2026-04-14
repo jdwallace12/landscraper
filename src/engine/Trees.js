@@ -51,11 +51,18 @@ export class Trees {
       // Don't place trees in water (allow on snow now!)
       if (height < -0.5) continue;
 
+      const isSnowy = height >= (seaLevel + 28);
+      
       // Pick a random variant
-      const variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
+      let variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
+      
+      // Force mostly pine trees (indices 0-5) when on snow
+      if (isSnowy && TREE_VARIANTS[variantIdx].type !== 'pine' && Math.random() < 0.9) {
+          variantIdx = Math.floor(Math.random() * 6); 
+      }
+      
       const variant = TREE_VARIANTS[variantIdx];
       const scale = 0.3 + Math.random() * 0.45;
-      const isSnowy = height >= (seaLevel + 28);
       const tree = this._createTree(variant, scale, isSnowy);
 
       tree.position.set(tx, height, tz);
