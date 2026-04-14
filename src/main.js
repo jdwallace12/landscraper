@@ -270,9 +270,10 @@ function handleInteractStart(e) {
     trees.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity, seaLevel);
   }
 
-  if (tool.isTreeClear) {
+  if (tool.isDemolish) {
     const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
     trees.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
+    chairlifts.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
   }
 
   if (tool.isSkier) {

@@ -188,6 +188,28 @@ export class Chairlifts {
     this.lines = [];
   }
 
+  /** Remove any chairlift whose endpoint (or cable path) is within world radius of (wx, wz) */
+  removeNear(wx, wz, radius) {
+    const toRemove = [];
+    for (const line of this.lines) {
+      const d1 = Math.sqrt((line.p1.x - wx) ** 2 + (line.p1.z - wz) ** 2);
+      const d2 = Math.sqrt((line.p2.x - wx) ** 2 + (line.p2.z - wz) ** 2);
+      // Also check any cable point along the line
+      const nearCable = line.cablePoints.some(p => {
+        const d = Math.sqrt((p.x - wx) ** 2 + (p.z - wz) ** 2);
+        return d < radius;
+      });
+      if (d1 < radius || d2 < radius || nearCable) {
+        toRemove.push(line);
+      }
+    }
+    for (const line of toRemove) {
+      this.group.remove(line.group);
+      line.group.traverse(c => { if (c.geometry) c.geometry.dispose(); });
+      this.lines.splice(this.lines.indexOf(line), 1);
+    }
+  }
+
   _buildChair() {
     const g = new THREE.Group();
     

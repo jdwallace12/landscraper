@@ -221,7 +221,7 @@ export class UI {
       • <b>Left/Right Drag:</b> Pan<br><br>
       <b>Building & Tools</b><br>
       • <b>Chairlift Tool:</b> Click once for base, then click again for top<br>
-      • <b>Shortcuts:</b> 1-7 Tools · [ ] Brush Size<br>
+      • <b>Shortcuts:</b> 1-7 Tools · [ ] Size · ⌘[ ] Strength<br>
       • <b>System:</b> Ctrl+Z Undo · Ctrl+S Save
     `;
     sidebar.appendChild(hint);
@@ -294,13 +294,22 @@ export class UI {
         e.preventDefault();
         this.callbacks.onSave();
       }
-      // Brush size with [ ]
-      if (e.key === '[') {
+      // Brush size with [ ] or strength with Cmd+[ ]
+      if (e.metaKey && e.key === '[') {
+        e.preventDefault();
+        const v = Math.max(0.05, parseFloat(this.strengthSlider.value) - 0.1);
+        this.strengthSlider.value = v;
+        this.strengthSlider.dispatchEvent(new Event('input'));
+      } else if (e.metaKey && e.key === ']') {
+        e.preventDefault();
+        const v = Math.min(2.0, parseFloat(this.strengthSlider.value) + 0.1);
+        this.strengthSlider.value = v;
+        this.strengthSlider.dispatchEvent(new Event('input'));
+      } else if (e.key === '[') {
         const v = Math.max(1, parseFloat(this.radiusSlider.value) - 4);
         this.radiusSlider.value = v;
         this.radiusSlider.dispatchEvent(new Event('input'));
-      }
-      if (e.key === ']') {
+      } else if (e.key === ']') {
         const v = Math.min(100, parseFloat(this.radiusSlider.value) + 4);
         this.radiusSlider.value = v;
         this.radiusSlider.dispatchEvent(new Event('input'));

@@ -123,14 +123,14 @@ export const TOOLS = {
     apply() { /* no-op — tree placement handled externally */ },
   },
 
-  treeClear: {
-    name: 'Clear Trees',
-    icon: '🪓',
-    color: '#fb923c',
+  demolish: {
+    name: 'Demolish',
+    icon: '💥',
+    color: '#ef4444',
     cursor: 'crosshair',
     isBrush: false,
-    isTreeClear: true,
-    apply() { /* no-op — tree clearing handled externally */ },
+    isDemolish: true,
+    apply() { /* no-op — handled externally */ },
   },
 
   skier: {
