@@ -12,6 +12,28 @@ export class Skiers {
     this.skiers = []; // { mesh, wx, wz, vx, vz, active, trail }
     this._chairlifts = null; // cached reference for attraction forces
     this._tmpColor = new THREE.Color();
+
+    // Shared materials across all skiers to reduce GPU state changes
+    this._bodyMat = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.6 });
+    this._pantsMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.7 });
+    this._skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
+    this._skiMat = new THREE.MeshStandardMaterial({ color: 0xffa500, roughness: 0.3, metalness: 0.2 });
+
+    // Spatial hash for efficient repulsion
+    this._spatialHash = new Map();
+    this._gridSize = 20.0;
+  }
+
+  _updateSpatialHash() {
+    this._spatialHash.clear();
+    for (const s of this.skiers) {
+      if (!s.active || s.state !== 'skiing') continue;
+      const gx = Math.floor(s.wx / this._gridSize);
+      const gz = Math.floor(s.wz / this._gridSize);
+      const key = `${gx},${gz}`;
+      if (!this._spatialHash.has(key)) this._spatialHash.set(key, []);
+      this._spatialHash.get(key).push(s);
+    }
   }
 
   /** Drop a new skier at world position (wx, wz) */
@@ -59,6 +81,8 @@ export class Skiers {
     const res = this.terrain.resolution;
     const size = this.terrain.size;
     const half = size / 2;
+
+    this._updateSpatialHash();
 
     for (const s of this.skiers) {
       // Trail Fading/Overwriting
@@ -274,21 +298,34 @@ export class Skiers {
         s.vz += adz * attractStrength * dt;
       }
 
-      // Skier-to-skier repulsion: spread out to find fresh snow
-      // BUT disable near chairlift bases so skiers can converge to board
+      // Skier-to-skier repulsion using Spatial Hash
       if (nearestBaseDist > 25.0) {
         const repelRadius = 15.0;
-        for (const other of this.skiers) {
-          if (other === s || !other.active || other.state !== 'skiing') continue;
-          const dx = s.wx - other.wx;
-          const dz = s.wz - other.wz;
-          const distSq = dx * dx + dz * dz;
-          if (distSq < repelRadius * repelRadius && distSq > 0.01) {
-            const dist = Math.sqrt(distSq);
-            // Stronger, smoother repulsion to keep them in their own lanes without suddenly cutting
-            const repelStrength = 6.0 * (1.0 - dist / repelRadius);
-            s.vx += (dx / dist) * repelStrength * dt;
-            s.vz += (dz / dist) * repelStrength * dt;
+        const rrSq = repelRadius * repelRadius;
+        
+        const cgx = Math.floor(s.wx / this._gridSize);
+        const cgz = Math.floor(s.wz / this._gridSize);
+
+        // Check 3x3 grid around current cell
+        for (let ox = -1; ox <= 1; ox++) {
+          for (let oz = -1; oz <= 1; oz++) {
+            const neighbors = this._spatialHash.get(`${cgx + ox},${cgz + oz}`);
+            if (!neighbors) continue;
+            
+            for (const other of neighbors) {
+              if (other === s) continue;
+              const dx = s.wx - other.wx;
+              const dz = s.wz - other.wz;
+              const distSq = dx * dx + dz * dz;
+              
+              if (distSq < rrSq && distSq > 0.01) {
+                const dist = Math.sqrt(distSq);
+                const repelStrength = 6.0 * (1.0 - dist / repelRadius);
+                const invDist = 1.0 / dist;
+                s.vx += (dx * invDist) * repelStrength * dt;
+                s.vz += (dz * invDist) * repelStrength * dt;
+              }
+            }
           }
         }
       }
@@ -453,10 +490,10 @@ export class Skiers {
   _buildSkier() {
     const group = new THREE.Group();
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.6 }); // red jacket
-    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.7 }); // dark pants
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
-    const skiMat = new THREE.MeshStandardMaterial({ color: 0xffa500, roughness: 0.3, metalness: 0.2 });
+    const bodyMat = this._bodyMat;
+    const pantsMat = this._pantsMat;
+    const skinMat = this._skinMat;
+    const skiMat = this._skiMat;
 
     // Body (torso)
     const torso = new THREE.Mesh(

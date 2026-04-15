@@ -1,14 +1,16 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export class SceneManager {
   constructor(canvas) {
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.canvas = canvas;
+
+    // Renderer — WebGPURenderer auto-falls back to WebGL2 if WebGPU is unavailable
+    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
@@ -74,6 +76,11 @@ export class SceneManager {
     });
   }
 
+  /** Initialize the WebGPU backend — must be awaited before rendering */
+  async init() {
+    await this.renderer.init();
+  }
+
   add(object) {
     this.scene.add(object);
   }
@@ -124,8 +131,8 @@ export class SceneManager {
     const sun = new THREE.DirectionalLight(0xffeedd, 1.6);
     sun.position.set(80, 120, 60);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 800;
     sun.shadow.camera.left = -300;

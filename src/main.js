@@ -11,6 +11,9 @@ import { History } from './history/History.js';
 import { Snow } from './engine/Snow.js';
 import { UI } from './ui/UI.js';
 
+// ---- Boot ----
+(async () => {
+
 // ---- State ----
 let seaLevel = -1;
 let currentBaseElevation = 0;
@@ -23,6 +26,7 @@ let currentFileHandle = null;
 // ---- Init ----
 const canvas = document.getElementById('canvas');
 const scene = new SceneManager(canvas);
+await scene.init();
 const terrain = new Terrain(600, 384);
 const water = new Water(600, seaLevel);
 const trees = new Trees(terrain);
@@ -331,3 +335,5 @@ function animate() {
   scene.render();
 }
 animate();
+
+})();

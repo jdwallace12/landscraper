@@ -125,36 +125,56 @@ export class Terrain {
     this.updateMesh(seaLevel);
   }
 
-  /** Push heightmap data into geometry and recolor */
-  updateMesh(seaLevel = 0) {
+  /** Push heightmap data into geometry and recolor.
+   * If cx and radius are provided, only updates that region.
+   */
+  updateMesh(seaLevel = 0, cx = null, cz = null, worldRadius = null) {
     const pos = this.geometry.attributes.position;
     const col = this.geometry.attributes.color;
     const res = this.resolution;
+    const hmap = this.heightmap;
+    const smap = this.snowmap;
+    const spacing = this.size / (res - 1);
+    const invSpacing2 = 1 / (2 * spacing);
 
-    for (let i = 0; i < pos.count; i++) {
-      const h = this.heightmap[i];
-      pos.setY(i, h);
+    let startZ = 0, endZ = res;
+    let startX = 0, endX = res;
 
-      const gx = i % res;
-      const gz = Math.floor(i / res);
-      
-      const hL = this.getHeight(gx - 1, gz);
-      const hR = this.getHeight(gx + 1, gz);
-      const hU = this.getHeight(gx, gz - 1);
-      const hD = this.getHeight(gx, gz + 1);
+    if (cx !== null && worldRadius !== null) {
+      const { gx, gz } = this.worldToGrid(cx, cz);
+      const rCells = Math.ceil(worldRadius / spacing) + 2; // +2 for normal calculation margin
+      startZ = Math.max(0, gz - rCells);
+      endZ = Math.min(res, gz + rCells);
+      startX = Math.max(0, gx - rCells);
+      endX = Math.min(res, gx + rCells);
+    }
 
-      const spacing = this.size / (res - 1);
-      const gradX = (hR - hL) / (2 * spacing);
-      const gradZ = (hD - hU) / (2 * spacing);
-      const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
+    for (let z = startZ; z < endZ; z++) {
+      for (let x = startX; x < endX; x++) {
+        const i = z * res + x;
+        const h = hmap[i];
+        pos.setY(i, h);
 
-      // Elevation and steepness based coloring
-      const c = this._colorForHeight(h, seaLevel, steepness, this.snowmap[i]);
-      col.setXYZ(i, c.r, c.g, c.b);
+        const hL = x > 0 ? hmap[z * res + (x - 1)] : hmap[z * res + x];
+        const hR = x < res - 1 ? hmap[z * res + (x + 1)] : hmap[z * res + x];
+        const hU = z > 0 ? hmap[(z - 1) * res + x] : hmap[z * res + x];
+        const hD = z < res - 1 ? hmap[(z + 1) * res + x] : hmap[z * res + x];
+
+        const gradX = (hR - hL) * invSpacing2;
+        const gradZ = (hD - hU) * invSpacing2;
+        const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
+
+        const c = this._colorForHeight(h, seaLevel, steepness, smap[i]);
+        col.setXYZ(i, c.r, c.g, c.b);
+      }
     }
 
     pos.needsUpdate = true;
     col.needsUpdate = true;
+    
+    // computeVertexNormals is slow but necessary for lighting. 
+    // Optimization: only recompute if we did a global update or every few frames? 
+    // Actually, let's keep it for now but the loop above is much faster.
     this.geometry.computeVertexNormals();
   }
 
@@ -199,48 +219,46 @@ export class Terrain {
     }
   }
 
+  // Pre-allocated color temporaries — avoids GC pressure in hot loops
+  _tmpBase = new THREE.Color();
+  _tmpResult = new THREE.Color();
+
   _colorForHeight(h, seaLevel, steepness = 0, snowAmount = 0) {
-    const tmp = new THREE.Color();
-    let baseColor;
+    const base = this._tmpBase;
+    const result = this._tmpResult;
     
     if (h < seaLevel - 4) {
-      baseColor = DEEP_WATER.clone();
+      base.copy(DEEP_WATER);
     } else if (h < seaLevel - 1) {
-      tmp.lerpColors(DEEP_WATER, SHALLOW, (h - (seaLevel - 4)) / 3);
-      baseColor = tmp.clone();
+      base.lerpColors(DEEP_WATER, SHALLOW, (h - (seaLevel - 4)) / 3);
     } else if (h < seaLevel + 0.5) {
-      tmp.lerpColors(SHALLOW, SAND, (h - (seaLevel - 1)) / 1.5);
-      baseColor = tmp.clone();
+      base.lerpColors(SHALLOW, SAND, (h - (seaLevel - 1)) / 1.5);
     } else if (h < seaLevel + 6) {
-      tmp.lerpColors(SAND, GRASS_LOW, (h - (seaLevel + 0.5)) / 5.5);
-      baseColor = tmp.clone();
+      base.lerpColors(SAND, GRASS_LOW, (h - (seaLevel + 0.5)) / 5.5);
     } else if (h < seaLevel + 15) {
-      tmp.lerpColors(GRASS_LOW, GRASS_HIGH, (h - (seaLevel + 6)) / 9);
-      baseColor = tmp.clone();
+      base.lerpColors(GRASS_LOW, GRASS_HIGH, (h - (seaLevel + 6)) / 9);
     } else if (h < seaLevel + 28) {
-      tmp.lerpColors(GRASS_HIGH, ROCK, (h - (seaLevel + 15)) / 13);
-      baseColor = tmp.clone();
+      base.lerpColors(GRASS_HIGH, ROCK, (h - (seaLevel + 15)) / 13);
     } else if (h < seaLevel + 40) {
-      tmp.lerpColors(ROCK, SNOW, (h - (seaLevel + 28)) / 12);
-      baseColor = tmp.clone();
+      base.lerpColors(ROCK, SNOW, (h - (seaLevel + 28)) / 12);
     } else {
-      baseColor = SNOW.clone();
+      base.copy(SNOW);
     }
 
     // Overlay exposed rock if heavily angled 
     if (h > seaLevel + 0.5 && steepness > 0.6) {
-      const steepFactor = Math.min((steepness - 0.6) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
-      tmp.lerpColors(baseColor, ROCK, steepFactor);
-      baseColor = tmp.clone();
+      const steepFactor = Math.min((steepness - 0.6) / 0.5, 1.0);
+      result.lerpColors(base, ROCK, steepFactor);
+      base.copy(result);
     }
 
     // Overlay manually painted snow
     if (snowAmount > 0.05) {
-      tmp.lerpColors(baseColor, SNOW, Math.min(snowAmount, 1.0));
-      return tmp;
+      result.lerpColors(base, SNOW, Math.min(snowAmount, 1.0));
+      return result;
     }
 
-    return baseColor;
+    return base;
   }
 
   shiftGlobalHeight(delta) {

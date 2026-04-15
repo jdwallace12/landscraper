@@ -5,7 +5,7 @@ export class Water {
     this.size = size;
     this.seaLevel = seaLevel;
 
-    this.geometry = new THREE.PlaneGeometry(size, size, 128, 128);
+    this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
     this.geometry.rotateX(-Math.PI / 2);
 
     this.material = new THREE.MeshStandardMaterial({
