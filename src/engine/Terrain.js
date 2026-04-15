@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const DEEP_WATER = new THREE.Color(0x0a2a4a);
 const SHALLOW = new THREE.Color(0x1a6e8e);

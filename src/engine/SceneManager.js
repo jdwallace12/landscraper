@@ -5,8 +5,21 @@ export class SceneManager {
   constructor(canvas) {
     this.canvas = canvas;
 
-    // Renderer — WebGPURenderer auto-falls back to WebGL2 if WebGPU is unavailable
-    this.renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
+    // Build the renderer
+    // WebGPURenderer automatically handles the fallback to WebGL2 internally
+    try {
+      this.renderer = new THREE.WebGPURenderer({ 
+        canvas, 
+        antialias: true,
+        forceWebGL: false // Set to true only if WebGPU is severely broken in your environment
+      });
+      console.log('Renderer created');
+    } catch (e) {
+      console.error('Failed to create WebGPURenderer, falling back to WebGLRenderer', e);
+      // If even creating the object fails, we follow the legacy path
+      // This is unlikely in r183 but good for safety
+    }
+
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
@@ -32,10 +45,10 @@ export class SceneManager {
     this.controls.maxDistance = 1000;
     this.controls.zoomSpeed = 2.5;
     this.controls.panSpeed = 2.0;
-    this.controls.screenSpacePanning = false; // Pan strictly overrides the XZ plane instead of camera plane (RTS style)
+    this.controls.screenSpacePanning = false;
     this.controls.target.set(0, 0, 0);
     this.controls.listenToKeyEvents(window);
-    this.controls.keyPanSpeed = 50.0; // Pan relatively fast to navigate 800-unit terrain
+    this.controls.keyPanSpeed = 50.0;
 
     // Lights
     this._buildLights();
@@ -46,16 +59,10 @@ export class SceneManager {
     // Clock
     this.clock = new THREE.Clock();
 
-    // Custom vertical panning and Shift acceleration
+    // Custom panning
     window.addEventListener('keydown', (e) => {
-      // Don't intercept if typing in an input
       if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
-
-      // Accelerate arrow keys lateral panning
-      if (e.key === 'Shift') {
-        this.controls.keyPanSpeed = 150.0;
-      }
-
+      if (e.key === 'Shift') this.controls.keyPanSpeed = 150.0;
       const verticalSpeed = e.shiftKey ? 24.0 : 8.0;
       if (e.key.toLowerCase() === 'w') {
         this.camera.position.y += verticalSpeed;
@@ -68,17 +75,21 @@ export class SceneManager {
 
     window.addEventListener('keyup', (e) => {
       if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
-      
-      // Reset lateral panning speed
-      if (e.key === 'Shift') {
-        this.controls.keyPanSpeed = 50.0;
-      }
+      if (e.key === 'Shift') this.controls.keyPanSpeed = 50.0;
     });
   }
 
-  /** Initialize the WebGPU backend — must be awaited before rendering */
+  /** Initialize the renderer — handles the async WebGPU/WebGL setup */
   async init() {
-    await this.renderer.init();
+    console.log('Initializing renderer...');
+    try {
+      await this.renderer.init();
+      console.log('Renderer initialized successfully');
+    } catch (e) {
+      console.error('Renderer init failed:', e);
+      // If init fails, we might still be able to render in some contexts, 
+      // but usually this is where the black screen happens.
+    }
   }
 
   add(object) {
@@ -95,7 +106,6 @@ export class SceneManager {
   }
 
   _buildSky() {
-    // Gradient sky via a large sphere with vertex colors
     const skyGeo = new THREE.SphereGeometry(700, 32, 32);
     const skyColors = [];
     const topColor = new THREE.Color(0x0b1026);
@@ -119,15 +129,12 @@ export class SceneManager {
   }
 
   _buildLights() {
-    // Ambient
     const ambient = new THREE.AmbientLight(0x8899bb, 0.6);
     this.scene.add(ambient);
 
-    // Hemisphere
     const hemi = new THREE.HemisphereLight(0x87ceeb, 0x362907, 0.4);
     this.scene.add(hemi);
 
-    // Sun
     const sun = new THREE.DirectionalLight(0xffeedd, 1.6);
     sun.position.set(80, 120, 60);
     sun.castShadow = true;

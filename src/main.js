@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { SceneManager } from './engine/SceneManager.js';
 import { Terrain } from './engine/Terrain.js';
 import { Water } from './engine/Water.js';
