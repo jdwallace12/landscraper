@@ -90,7 +90,8 @@ export class BrushEngine {
         this._isStart
       );
       this._isStart = false;
-      this.terrain.updateMesh(seaLevel);
+      const worldRadius = (this.radius / this.terrain.resolution) * this.terrain.size;
+      this.terrain.updateMesh(seaLevel, this.intersectionPoint.x, this.intersectionPoint.z, worldRadius);
       return true;
     }
     return false;
