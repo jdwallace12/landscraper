@@ -16,6 +16,22 @@ export const TOOLS = {
       });
     },
   },
+  
+  hill: {
+    name: 'Hill',
+    icon: '🏔️',
+    color: '#86efac',
+    cursor: 'crosshair',
+    isBrush: true,
+    apply(heightmap, res, cx, cz, radius, strength) {
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        // Smooth bell-curve dome: raise terrain toward a rounded peak
+        // The target height is strength-based at the center, tapering with falloff
+        const targetLift = strength * falloff * falloff; // squared falloff = rounder dome
+        heightmap[i] += targetLift * 0.4;
+      });
+    },
+  },
 
   lower: {
     name: 'Lower',
