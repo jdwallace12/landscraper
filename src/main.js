@@ -27,12 +27,12 @@ let currentFileHandle = null;
 const canvas = document.getElementById('canvas');
 const scene = new SceneManager(canvas);
 await scene.init();
-const terrain = new Terrain(600, 256);
-const water = new Water(600, seaLevel);
+const terrain = new Terrain(400, 256);
+const water = new Water(400, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
-const snow = new Snow(600);
+const snow = new Snow(400);
 const history = new History(50);
 
 scene.add(terrain.mesh);
