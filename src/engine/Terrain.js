@@ -17,6 +17,7 @@ export class Terrain {
     this.size = size;
     this.resolution = resolution;
     this.heightmap = new Float32Array(resolution * resolution);
+    this.snowmap = new Float32Array(resolution * resolution);
 
     // Build geometry
     this.geometry = new THREE.PlaneGeometry(
@@ -102,20 +103,25 @@ export class Terrain {
     return { gx, gz };
   }
 
-  /** Snapshot the heightmap for undo */
+  /** Snapshot the heightmap and snowmap for undo */
   snapshot() {
-    return new Float32Array(this.heightmap);
+    return {
+      heightmap: new Float32Array(this.heightmap),
+      snowmap: new Float32Array(this.snowmap)
+    };
   }
 
   /** Restore from a snapshot */
   restore(snap) {
-    this.heightmap.set(snap);
+    if (snap.heightmap) this.heightmap.set(snap.heightmap);
+    if (snap.snowmap) this.snowmap.set(snap.snowmap);
     this.updateMesh();
   }
 
   /** Reset terrain to flat (all zeros) */
   reset(seaLevel = 0) {
     this.heightmap.fill(0);
+    this.snowmap.fill(0);
     this.updateMesh(seaLevel);
   }
 
@@ -143,7 +149,7 @@ export class Terrain {
       const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
 
       // Elevation and steepness based coloring
-      const c = this._colorForHeight(h, seaLevel, steepness);
+      const c = this._colorForHeight(h, seaLevel, steepness, this.snowmap[i]);
       col.setXYZ(i, c.r, c.g, c.b);
     }
 
@@ -193,7 +199,7 @@ export class Terrain {
     }
   }
 
-  _colorForHeight(h, seaLevel, steepness = 0) {
+  _colorForHeight(h, seaLevel, steepness = 0, snowAmount = 0) {
     const tmp = new THREE.Color();
     let baseColor;
     
@@ -225,6 +231,12 @@ export class Terrain {
     if (h > seaLevel + 0.5 && steepness > 0.6) {
       const steepFactor = Math.min((steepness - 0.6) / 0.5, 1.0); // Max rock cover beyond 0.9 steepness
       tmp.lerpColors(baseColor, ROCK, steepFactor);
+      baseColor = tmp.clone();
+    }
+
+    // Overlay manually painted snow
+    if (snowAmount > 0.05) {
+      tmp.lerpColors(baseColor, SNOW, Math.min(snowAmount, 1.0));
       return tmp;
     }
 

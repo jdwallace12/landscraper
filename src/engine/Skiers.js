@@ -380,7 +380,10 @@ export class Skiers {
       s.mesh.position.set(s.wx, newH + 0.15, s.wz);
 
       // Stop if below the snow line (rock starts at seaLevel + 28)
-      if (newH < seaLevel + 28) {
+      // UNLESS the surface has been covered with the Snow Maker tool
+      const snowIdx = ngz * res + ngx;
+      const hasSnowPaint = this.terrain.snowmap[snowIdx] > 0.3;
+      if (newH < seaLevel + 28 && !hasSnowPaint) {
         this._handleStop(s, chairlifts);
         continue;
       }

@@ -152,6 +152,21 @@ export const TOOLS = {
     isChairlift: true,
     apply() { /* no-op — handled externally */ },
   },
+  
+  snowmaker: {
+    name: 'Snow Maker',
+    icon: '❄️',
+    color: '#a5f3fc',
+    cursor: 'crosshair',
+    isBrush: true,
+    isSnowBrush: true,
+    apply(snowmap, res, cx, cz, radius, strength) {
+      applyBrush(snowmap, res, cx, cz, radius, (i, falloff) => {
+        snowmap[i] += strength * falloff * 0.5;
+        if (snowmap[i] > 1.0) snowmap[i] = 1.0;
+      });
+    },
+  },
 };
 
 /**

@@ -117,6 +117,7 @@ function doReset() {
 async function doSaveMap(forcePicker = false) {
   const data = {
     heightmap: Array.from(terrain.heightmap),
+    snowmap: Array.from(terrain.snowmap),
     seaLevel: seaLevel,
     baseElevation: currentBaseElevation,
     trees: trees.trees.map(t => ({ x: t.worldX, z: t.worldZ, scale: t.scale, variantIdx: t.variantIdx })),
@@ -218,6 +219,7 @@ function loadMapData(data) {
 
   // Restore Terrain
   terrain.heightmap.set(data.heightmap);
+  if (data.snowmap) terrain.snowmap.set(data.snowmap);
   
   // Restore Settings
   seaLevel = data.seaLevel ?? -1;

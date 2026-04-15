@@ -80,8 +80,9 @@ export class BrushEngine {
         this.intersectionPoint.x,
         this.intersectionPoint.z
       );
+      const mapToApply = this.tool.isSnowBrush ? this.terrain.snowmap : this.terrain.heightmap;
       this.tool.apply(
-        this.terrain.heightmap,
+        mapToApply,
         this.terrain.resolution,
         gx, gz,
         this.radius,
