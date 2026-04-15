@@ -125,10 +125,8 @@ export class Terrain {
     this.updateMesh(seaLevel);
   }
 
-  /** Push heightmap data into geometry and recolor.
-   * If cx and radius are provided, only updates that region.
-   */
-  updateMesh(seaLevel = 0, cx = null, cz = null, worldRadius = null) {
+  /** Push heightmap data into geometry and recolor. */
+  updateMesh(seaLevel = 0) {
     const pos = this.geometry.attributes.position;
     const col = this.geometry.attributes.color;
     const res = this.resolution;
@@ -137,28 +135,17 @@ export class Terrain {
     const spacing = this.size / (res - 1);
     const invSpacing2 = 1 / (2 * spacing);
 
-    let startZ = 0, endZ = res;
-    let startX = 0, endX = res;
-
-    if (cx !== null && worldRadius !== null) {
-      const { gx, gz } = this.worldToGrid(cx, cz);
-      const rCells = Math.ceil(worldRadius / spacing) + 2; // +2 for normal calculation margin
-      startZ = Math.max(0, gz - rCells);
-      endZ = Math.min(res, gz + rCells);
-      startX = Math.max(0, gx - rCells);
-      endX = Math.min(res, gx + rCells);
-    }
-
-    for (let z = startZ; z < endZ; z++) {
-      for (let x = startX; x < endX; x++) {
-        const i = z * res + x;
+    for (let i = 0; i < pos.count; i++) {
         const h = hmap[i];
         pos.setY(i, h);
 
-        const hL = x > 0 ? hmap[z * res + (x - 1)] : hmap[z * res + x];
-        const hR = x < res - 1 ? hmap[z * res + (x + 1)] : hmap[z * res + x];
-        const hU = z > 0 ? hmap[(z - 1) * res + x] : hmap[z * res + x];
-        const hD = z < res - 1 ? hmap[(z + 1) * res + x] : hmap[z * res + x];
+        const gx = i % res;
+        const gz = (i / res) | 0;
+
+        const hL = gx > 0 ? hmap[gz * res + (gx - 1)] : hmap[gz * res + gx];
+        const hR = gx < res - 1 ? hmap[gz * res + (gx + 1)] : hmap[gz * res + gx];
+        const hU = gz > 0 ? hmap[(gz - 1) * res + gx] : hmap[gz * res + gx];
+        const hD = gz < res - 1 ? hmap[(gz + 1) * res + gx] : hmap[gz * res + gx];
 
         const gradX = (hR - hL) * invSpacing2;
         const gradZ = (hD - hU) * invSpacing2;
@@ -166,15 +153,10 @@ export class Terrain {
 
         const c = this._colorForHeight(h, seaLevel, steepness, smap[i]);
         col.setXYZ(i, c.r, c.g, c.b);
-      }
     }
 
     pos.needsUpdate = true;
     col.needsUpdate = true;
-    
-    // computeVertexNormals is slow but necessary for lighting. 
-    // Optimization: only recompute if we did a global update or every few frames? 
-    // Actually, let's keep it for now but the loop above is much faster.
     this.geometry.computeVertexNormals();
   }
 
