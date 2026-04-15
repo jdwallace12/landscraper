@@ -27,7 +27,7 @@ let currentFileHandle = null;
 const canvas = document.getElementById('canvas');
 const scene = new SceneManager(canvas);
 await scene.init();
-const terrain = new Terrain(600, 384);
+const terrain = new Terrain(600, 256);
 const water = new Water(600, seaLevel);
 const trees = new Trees(terrain);
 const skiers = new Skiers(terrain);
