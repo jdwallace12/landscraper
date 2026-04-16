@@ -35,6 +35,7 @@ export class Trees {
       color: 0x5c3a1e,
       roughness: 0.9,
       metalness: 0.0,
+      flatShading: true,
     });
 
     this.crownMaterial = new THREE.MeshStandardMaterial({
@@ -45,8 +46,10 @@ export class Trees {
     });
 
     // Create a generic trunk geometry (1 unit high, centered at bottom)
-    const baseTrunk = new THREE.CylinderGeometry(1, 1, 1, 6);
+    let baseTrunk = new THREE.CylinderGeometry(1, 1, 1, 6);
     baseTrunk.translate(0, 0.5, 0);
+    baseTrunk = baseTrunk.toNonIndexed();
+    baseTrunk.computeVertexNormals();
     this.baseTrunkGeo = baseTrunk;
 
     // Build template geometries for each variant's crown
@@ -56,13 +59,24 @@ export class Trees {
     // 1 for trunks (all variants share this, just scaled differently)
     this.trunkIM = new THREE.InstancedMesh(this.baseTrunkGeo, this.trunkMaterial, MAX_TREES);
     this.trunkIM.castShadow = true;
+    this.trunkIM.receiveShadow = true;
     this.trunkIM.count = 0;
     this.group.add(this.trunkIM);
 
     // 8 for crowns (one per variant geometry)
     this.crownIMs = this.variantCrownGeos.map((geo, i) => {
       const im = new THREE.InstancedMesh(geo, this.crownMaterial.clone(), MAX_PER_VARIANT);
+      // Pre-allocate instanceColor using the variant's base color to prevent a flash of white
+      const colors = new Float32Array(MAX_PER_VARIANT * 3);
+      const varColor = new THREE.Color(TREE_VARIANTS[i].color);
+      for (let j = 0; j < MAX_PER_VARIANT; j++) {
+        colors[j * 3] = varColor.r;
+        colors[j * 3 + 1] = varColor.g;
+        colors[j * 3 + 2] = varColor.b;
+      }
+      im.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
       im.castShadow = true;
+      im.receiveShadow = true;
       im.count = 0;
       this.group.add(im);
       return im;
@@ -80,15 +94,19 @@ export class Trees {
         const layerScale = 1 - l * 0.25;
         const coneH = v.crownH * 0.45 * layerScale;
         const coneR = v.crownR * layerScale;
-        const coneGeo = new THREE.ConeGeometry(coneR, coneH, 7);
+        let coneGeo = new THREE.ConeGeometry(coneR, coneH, 7);
         const yOff = v.trunkH + l * coneH * 0.55;
         coneGeo.translate(0, yOff + coneH / 2, 0);
+        coneGeo = coneGeo.toNonIndexed();
+        coneGeo.computeVertexNormals();
         geos.push(coneGeo);
       }
       return BufferGeometryUtils.mergeGeometries(geos);
     } else {
-      const sphereGeo = new THREE.IcosahedronGeometry(v.crownR, 1);
+      let sphereGeo = new THREE.IcosahedronGeometry(v.crownR, 1);
       sphereGeo.translate(0, v.trunkH + v.crownR * 0.7, 0);
+      sphereGeo = sphereGeo.toNonIndexed();
+      sphereGeo.computeVertexNormals();
       return sphereGeo;
     }
   }
@@ -111,10 +129,11 @@ export class Trees {
       if (height < -0.5) continue;
 
       const isSnowy = height >= (seaLevel + 28);
-      let variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
-      
-      if (isSnowy && TREE_VARIANTS[variantIdx].type !== 'pine' && Math.random() < 0.9) {
-          variantIdx = Math.floor(Math.random() * 6); 
+      let variantIdx;
+      if (isSnowy) {
+        variantIdx = Math.floor(Math.random() * 6); // Only pines in snow
+      } else {
+        variantIdx = Math.floor(Math.random() * TREE_VARIANTS.length);
       }
       
       const variant = TREE_VARIANTS[variantIdx];
@@ -175,7 +194,8 @@ export class Trees {
     im.setMatrixAt(tree.crownInstanceIdx, this._dummy.matrix);
 
     const v = TREE_VARIANTS[tree.variantIdx];
-    const targetColor = tree.isSnowy ? 0xeaeafa : v.color;
+    // Slightly darker snow color (not pure white) so flat-shaded geometries don't wash out in the strong sun
+    const targetColor = tree.isSnowy ? 0xd0d8dd : v.color;
     this._color.setHex(targetColor);
     im.setColorAt(tree.crownInstanceIdx, this._color);
   }
