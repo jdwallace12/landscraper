@@ -59,6 +59,7 @@ export class Trees {
     // 1 for trunks (all variants share this, just scaled differently)
     this.trunkIM = new THREE.InstancedMesh(this.baseTrunkGeo, this.trunkMaterial, MAX_TREES);
     this.trunkIM.castShadow = true;
+    this.trunkIM.frustumCulled = false;
     this.trunkIM.count = 0;
     this.group.add(this.trunkIM);
 
@@ -75,6 +76,7 @@ export class Trees {
       }
       im.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
       im.castShadow = true;
+      im.frustumCulled = false;
       im.count = 0;
       this.group.add(im);
       return im;

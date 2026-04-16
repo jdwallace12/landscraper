@@ -406,9 +406,9 @@ export class Skiers {
         // perpendicular to [vx, vz] is [-vz, vx]
         const px = -s.vz / s.speed;
         const pz = s.vx / s.speed;
-        // Tighter, narrower oscillation to prevent path crossing
-        const carveStrength = Math.min(s.speed * 0.8, 2.5); 
-        const carveForce = Math.sin(s.timeAlive * 3.0 + s.carvePhase) * carveStrength;
+        // Wider, faster oscillation for more turny carving
+        const carveStrength = Math.min(s.speed * 1.2, 3.8); 
+        const carveForce = Math.sin(s.timeAlive * 4.8 + s.carvePhase) * carveStrength;
         carveX = px * carveForce;
         carveZ = pz * carveForce;
       }

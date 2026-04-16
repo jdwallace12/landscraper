@@ -9,6 +9,7 @@ import { BrushEngine } from './tools/BrushEngine.js';
 import { TOOLS } from './tools/tools.js';
 import { History } from './history/History.js';
 import { Snow } from './engine/Snow.js';
+import { Boulders } from './engine/Boulders.js';
 import { UI } from './ui/UI.js';
 
 // ---- Boot ----
@@ -30,6 +31,7 @@ await scene.init();
 const terrain = new Terrain(400, 256);
 const water = new Water(400, seaLevel);
 const trees = new Trees(terrain);
+const boulders = new Boulders(terrain);
 const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
 const snow = new Snow(400);
@@ -38,6 +40,7 @@ const history = new History(50);
 scene.add(terrain.mesh);
 scene.add(water.mesh);
 scene.add(trees.group);
+scene.add(boulders.group);
 scene.add(skiers.group);
 scene.add(chairlifts.group);
 scene.add(snow.group);
@@ -66,6 +69,7 @@ const ui = new UI({
       terrain.shiftGlobalHeight(delta);
       terrain.updateMesh(seaLevel);
       trees.updatePositions(seaLevel);
+      boulders.updatePositions(seaLevel);
     }
   },
   onSeaLevel(v) {
@@ -73,6 +77,7 @@ const ui = new UI({
     water.setSeaLevel(v);
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
+    boulders.updatePositions(seaLevel);
   },
   onToggleWireframe(checked) {
     terrain.material.wireframe = checked;
@@ -94,6 +99,7 @@ function doUndo() {
     terrain.restore(snap);
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
+    boulders.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -104,6 +110,7 @@ function doRedo() {
     terrain.restore(snap);
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
+    boulders.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -112,6 +119,7 @@ function doReset() {
   history.push(terrain.snapshot());
   terrain.reset(seaLevel);
   trees.clear();
+  boulders.clear();
   skiers.clear();
   chairlifts.clear();
   currentFileHandle = null;
@@ -125,6 +133,12 @@ async function doSaveMap(forcePicker = false) {
     seaLevel: seaLevel,
     baseElevation: currentBaseElevation,
     trees: trees.trees.map(t => ({ x: t.worldX, z: t.worldZ, scale: t.scale, variantIdx: t.variantIdx })),
+    boulders: boulders.boulders.map(b => ({
+      worldX: b.worldX, worldZ: b.worldZ, scale: b.scale, 
+      scaleX: b.scaleX, scaleY: b.scaleY, scaleZ: b.scaleZ, 
+      rotationX: b.rotationX, rotationY: b.rotationY, rotationZ: b.rotationZ, 
+      variantIdx: b.variantIdx 
+    })),
     chairlifts: chairlifts.lines.map(l => ({ 
       p1: { x: l.p1.x, y: l.p1.y, z: l.p1.z }, 
       p2: { x: l.p2.x, y: l.p2.y, z: l.p2.z } 
@@ -237,12 +251,18 @@ function loadMapData(data) {
 
   // Clear existing items
   trees.clear();
+  boulders.clear();
   chairlifts.clear();
   skiers.clear();
   
   // Restore Trees
   if (data.trees) {
     trees.loadTrees(data.trees, seaLevel);
+  }
+
+  // Restore Boulders
+  if (data.boulders) {
+    boulders.loadBoulders(data.boulders, seaLevel);
   }
 
   // Restore Chairlifts
@@ -276,9 +296,15 @@ function handleInteractStart(e) {
     trees.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity, seaLevel);
   }
 
+  if (tool.isBoulder) {
+    const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
+    boulders.placeCluster(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius, treeDensity, seaLevel);
+  }
+
   if (tool.isDemolish) {
     const worldRadius = (brush.radius / terrain.resolution) * terrain.size;
     trees.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
+    boulders.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
     chairlifts.removeNear(brush.intersectionPoint.x, brush.intersectionPoint.z, worldRadius);
   }
 
@@ -325,6 +351,7 @@ function animate() {
   const modified = brush.update(seaLevel);
   if (modified) {
     trees.updatePositions(seaLevel);
+    boulders.updatePositions(seaLevel);
   }
 
   skiers.update(dt, seaLevel, chairlifts, isSnowing);

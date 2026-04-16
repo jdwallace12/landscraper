@@ -132,6 +132,16 @@ export const TOOLS = {
     apply() { /* no-op — tree placement handled externally */ },
   },
 
+  boulders: {
+    name: 'Boulders',
+    icon: '🪨',
+    color: '#9ca3af',
+    cursor: 'crosshair',
+    isBrush: false,
+    isBoulder: true,
+    apply() { /* no-op — handled externally */ },
+  },
+
   demolish: {
     name: 'Demolish',
     icon: '💥',
