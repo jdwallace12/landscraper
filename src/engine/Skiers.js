@@ -85,24 +85,36 @@ export class Skiers {
     this._updateSpatialHash();
 
     for (const s of this.skiers) {
+      if (s.trailStartIndex === undefined) s.trailStartIndex = 0;
+
       // Trail Fading/Overwriting
-      let fadePointsCount = isSnowing ? 6 : 0; // If snowing, remove old tracks over time (2 nodes per frame)
+      let fadePointsCount = isSnowing ? 6 : 0; // If snowing, remove old tracks over time
       
-      // Also shift if we exceed max points
-      while (s.active && s.trailPoints.length >= 2000 * 3) {
-        s.trailPoints.splice(0, 3);
+      // Advance start index if we exceed max points
+      if (s.active && (s.trailPoints.length - s.trailStartIndex) >= 2000 * 3) {
+        s.trailStartIndex += 3;
       }
       
-      if (fadePointsCount > 0 && s.trailPoints.length > 0) {
-        s.trailPoints.splice(0, Math.min(fadePointsCount, s.trailPoints.length));
+      if (fadePointsCount > 0 && (s.trailPoints.length - s.trailStartIndex) > 0) {
+        s.trailStartIndex += Math.min(fadePointsCount, s.trailPoints.length - s.trailStartIndex);
+      }
+
+      let activeLength = s.trailPoints.length - s.trailStartIndex;
+      
+      // Amortize garbage collection by periodically dumping old points from memory
+      if (s.trailStartIndex > 3000 * 3) {
+        s.trailPoints = s.trailPoints.slice(s.trailStartIndex);
+        s.trailStartIndex = 0;
       }
 
       // Update trail geometry buffer for active and inactive (if they still have tracks fading)
-      if (s.trailPoints.length > 0 || isSnowing) {
+      if (activeLength > 0 || isSnowing) {
          const posAttr = s.trail.geometry.attributes.position;
-         posAttr.array.set(s.trailPoints);
+         for (let j = 0; j < activeLength; j++) {
+            posAttr.array[j] = s.trailPoints[s.trailStartIndex + j];
+         }
          posAttr.needsUpdate = true;
-         s.trail.geometry.setDrawRange(0, s.trailPoints.length / 3);
+         s.trail.geometry.setDrawRange(0, activeLength / 3);
       }
 
       if (!s.active) continue;
@@ -186,6 +198,7 @@ export class Skiers {
             s.vz = 0;
             s.speed = 0;
             s.trailPoints = [];
+            s.trailStartIndex = 0;
             s.trail.geometry.setDrawRange(0, 0);
 
             // Randomly choose left or right (-1 or 1)

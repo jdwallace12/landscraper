@@ -43,6 +43,25 @@ export class BrushEngine {
   }
 
   _updateRaycaster() {
+    if (!this._lastMouse) this._lastMouse = new THREE.Vector2(9999, 9999);
+    if (!this._lastCamPos) this._lastCamPos = new THREE.Vector3();
+    if (!this._lastCamRot) this._lastCamRot = new THREE.Euler();
+    
+    const stateChanged = this._lastPainting !== this.painting;
+    this._lastPainting = this.painting;
+
+    if (!stateChanged && 
+        !this.painting &&
+        this.mouse.equals(this._lastMouse) &&
+        this.camera.position.equals(this._lastCamPos) &&
+        this.camera.rotation.equals(this._lastCamRot)) {
+      return; // Skip expensive 65k face raycast if nothing moved
+    }
+    
+    this._lastMouse.copy(this.mouse);
+    this._lastCamPos.copy(this.camera.position);
+    this._lastCamRot.copy(this.camera.rotation);
+
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObject(this.terrain.mesh);
 
