@@ -122,6 +122,53 @@ export const TOOLS = {
     },
   },
 
+  ramp: {
+    name: 'Ramp',
+    icon: '📐',
+    color: '#f97316',
+    cursor: 'crosshair',
+    isBrush: true,
+    _startX: null,
+    _startZ: null,
+    _startH: null,
+    apply(heightmap, res, cx, cz, radius, strength, isStart) {
+      const ci = Math.round(cz) * res + Math.round(cx);
+      
+      // Capture the start of the ramp
+      if (isStart || this._startX === null) {
+        this._startX = cx;
+        this._startZ = cz;
+        this._startH = heightmap[ci] ?? 0;
+      }
+
+      // The current end of the ramp is the terrain height at our current brush center
+      const currentH = heightmap[ci] ?? 0;
+      
+      const dx = cx - this._startX;
+      const dz = cz - this._startZ;
+      const distSq = dx * dx + dz * dz;
+
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        const x = i % res;
+        const z = Math.floor(i / res);
+        
+        let targetH = currentH; 
+        if (distSq > 0.1) {
+          // Project the current grid point (x, z) onto the line from Start to Current
+          const px = x - this._startX;
+          const pz = z - this._startZ;
+          
+          // t is the normalized projection mapping representing progress along the ramp
+          const t = (px * dx + pz * dz) / distSq;
+          targetH = this._startH + t * (currentH - this._startH);
+        }
+
+        // Pull terrain towards the slanted ramp plane
+        heightmap[i] += (targetH - heightmap[i]) * falloff * strength * 0.4;
+      });
+    },
+  },
+
   trees: {
     name: 'Trees',
     icon: '🌲',
