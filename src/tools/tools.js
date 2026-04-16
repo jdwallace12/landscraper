@@ -33,6 +33,20 @@ export const TOOLS = {
     },
   },
 
+  peak: {
+    name: 'Peak',
+    icon: '🗻',
+    color: '#d946ef',
+    cursor: 'crosshair',
+    isBrush: true,
+    apply(heightmap, res, cx, cz, radius, strength) {
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        // Sharp spire/peak using tighter exponential falloff
+        heightmap[i] += strength * Math.pow(falloff, 4) * 0.8;
+      });
+    },
+  },
+
   lower: {
     name: 'Lower',
     icon: '🕳️',
@@ -46,21 +60,17 @@ export const TOOLS = {
     },
   },
 
-  flatten: {
-    name: 'Flatten',
-    icon: '⬜',
-    color: '#fbbf24',
+  bowl: {
+    name: 'Bowl',
+    icon: '🥣',
+    color: '#a78bfa',
     cursor: 'crosshair',
     isBrush: true,
-    _targetHeight: null,
-    apply(heightmap, res, cx, cz, radius, strength, isStart) {
-      if (isStart || this._targetHeight === null) {
-        const ci = Math.round(cz) * res + Math.round(cx);
-        this._targetHeight = heightmap[ci] ?? 0;
-      }
-      const target = this._targetHeight;
+    apply(heightmap, res, cx, cz, radius, strength) {
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
-        heightmap[i] += (target - heightmap[i]) * falloff * strength * 0.3;
+        // Smooth inverted dome for carving realistic bowls
+        const targetDrop = strength * falloff * falloff;
+        heightmap[i] -= targetDrop * 0.6;
       });
     },
   },
@@ -93,10 +103,10 @@ export const TOOLS = {
     },
   },
 
-  plateau: {
-    name: 'Plateau',
-    icon: '🏔️',
-    color: '#f472b6',
+  flatten: {
+    name: 'Flatten',
+    icon: '⬜',
+    color: '#fbbf24',
     cursor: 'crosshair',
     isBrush: true,
     _targetHeight: null,
@@ -107,24 +117,7 @@ export const TOOLS = {
       }
       const target = this._targetHeight;
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
-        if (heightmap[i] < target) {
-          heightmap[i] += strength * falloff * 0.5;
-          if (heightmap[i] > target) heightmap[i] = target;
-        }
-      });
-    },
-  },
-
-  roughen: {
-    name: 'Roughen',
-    icon: '⚡',
-    color: '#8b5cf6',
-    cursor: 'crosshair',
-    isBrush: true,
-    apply(heightmap, res, cx, cz, radius, strength) {
-      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
-        const noise = (Math.random() - 0.5) * 2.0; // Random fast peaks/valleys
-        heightmap[i] += noise * strength * falloff;
+        heightmap[i] += (target - heightmap[i]) * falloff * strength * 0.3;
       });
     },
   },
