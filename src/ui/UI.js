@@ -215,13 +215,13 @@ export class UI {
     hint.className = 'hint';
     hint.innerHTML = `
       <b>Camera Navigation</b><br>
-      • <b>Arrows:</b> Pan Lateral<br>
-      • <b>W / S:</b> Pan Up/Down<br>
-      • <b>Hold Shift:</b> Rotate<br>
-      • <b>Left/Right Drag:</b> Pan<br><br>
+      • <b>Right Drag:</b> Pan<br>
+      • <b>Alt/Cmd + Left Drag:</b> Rotate<br>
+      • <b>Scroll Wheel:</b> Zoom<br>
+      • <b>Arrows / W / S:</b> Keyboard Pan<br><br>
       <b>Building & Tools</b><br>
-      • <b>Chairlift Tool:</b> Click once for base, then click again for top<br>
-      • <b>Shortcuts:</b> 0-9 Tools · [ ] Size · ⌘[ ] Strength<br>
+      • <b>Chairlift:</b> Click once for base, again for top<br>
+      • <b>Shortcuts:</b> 1-9 Tools · [ ] Size · Cmd+[ ] Strength<br>
       • <b>System:</b> Ctrl+Z Undo · Ctrl+S Save
     `;
     sidebar.appendChild(hint);
