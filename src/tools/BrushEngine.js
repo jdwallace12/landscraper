@@ -50,7 +50,11 @@ export class BrushEngine {
     const stateChanged = this._lastPainting !== this.painting;
     this._lastPainting = this.painting;
 
+    const radiusChanged = this._lastRadius !== this.radius;
+    this._lastRadius = this.radius;
+
     if (!stateChanged && 
+        !radiusChanged &&
         !this.painting &&
         this.mouse.equals(this._lastMouse) &&
         this.camera.position.equals(this._lastCamPos) &&
