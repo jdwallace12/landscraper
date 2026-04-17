@@ -47,6 +47,20 @@ export const TOOLS = {
     },
   },
 
+  couloir: {
+    name: 'Couloir',
+    icon: '⚡',
+    color: '#e2e8f0',
+    cursor: 'crosshair',
+    isBrush: true,
+    apply(heightmap, res, cx, cz, radius, strength) {
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        // Deep, narrow carve for steep chutes (inverted peak)
+        heightmap[i] -= strength * Math.pow(falloff, 4) * 1.2;
+      });
+    },
+  },
+
   lower: {
     name: 'Lower',
     icon: '🕳️',
