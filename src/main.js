@@ -11,6 +11,7 @@ import { History } from './history/History.js';
 import { Snow } from './engine/Snow.js';
 import { Boulders } from './engine/Boulders.js';
 import { UI } from './ui/UI.js';
+import { Clouds } from './engine/Clouds.js';
 
 // ---- Boot ----
 (async () => {
@@ -36,6 +37,7 @@ const skiers = new Skiers(terrain);
 const chairlifts = new Chairlifts(terrain);
 const snow = new Snow(400);
 const history = new History(50);
+const clouds = new Clouds(terrain);
 
 scene.add(terrain.mesh);
 scene.add(water.mesh);
@@ -44,6 +46,8 @@ scene.add(boulders.group);
 scene.add(skiers.group);
 scene.add(chairlifts.group);
 scene.add(snow.group);
+scene.add(clouds.group);
+clouds.updatePositions(seaLevel);
 
 const brush = new BrushEngine(terrain, scene.camera, canvas);
 brush.setTool(TOOLS[currentToolKey]);
@@ -70,6 +74,7 @@ const ui = new UI({
       terrain.updateMesh(seaLevel);
       trees.updatePositions(seaLevel);
       boulders.updatePositions(seaLevel);
+      clouds.updatePositions(seaLevel);
     }
   },
   onSeaLevel(v) {
@@ -78,6 +83,7 @@ const ui = new UI({
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
     boulders.updatePositions(seaLevel);
+    clouds.updatePositions(seaLevel);
   },
   onToggleWireframe(checked) {
     terrain.material.wireframe = checked;
@@ -85,6 +91,9 @@ const ui = new UI({
   onToggleSnow(checked) {
     isSnowing = checked;
     snow.toggle(checked);
+  },
+  onToggleClouds(checked) {
+    clouds.toggle(checked);
   },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
@@ -100,6 +109,7 @@ function doUndo() {
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
     boulders.updatePositions(seaLevel);
+    clouds.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -111,6 +121,7 @@ function doRedo() {
     terrain.updateMesh(seaLevel);
     trees.updatePositions(seaLevel);
     boulders.updatePositions(seaLevel);
+    clouds.updatePositions(seaLevel);
   }
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -122,6 +133,7 @@ function doReset() {
   boulders.clear();
   skiers.clear();
   chairlifts.clear();
+  clouds.updatePositions(seaLevel);
   currentFileHandle = null;
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
@@ -254,6 +266,7 @@ function loadMapData(data) {
   boulders.clear();
   chairlifts.clear();
   skiers.clear();
+  clouds.updatePositions(seaLevel);
   
   // Restore Trees
   if (data.trees) {
@@ -333,6 +346,7 @@ function handleInteractStart(e) {
 
 function handleInteractEnd() {
   scene.controls.enabled = true;
+  clouds.updatePositions(seaLevel);
 }
 
 canvas.addEventListener('mousedown', handleInteractStart);
@@ -357,6 +371,7 @@ function animate() {
   skiers.update(dt, seaLevel, chairlifts, isSnowing);
   chairlifts.update(dt);
   snow.update(dt);
+  clouds.update(dt);
 
   water.update(dt);
   scene.render();

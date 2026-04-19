@@ -29,6 +29,7 @@ export class SceneManager {
 
     // Scene
     this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x2a4a6b, 0.0015);
     this._buildSky();
 
     // Camera
@@ -123,6 +124,7 @@ export class SceneManager {
     const skyMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       side: THREE.BackSide,
+      fog: false
     });
     const sky = new THREE.Mesh(skyGeo, skyMat);
     this.scene.add(sky);

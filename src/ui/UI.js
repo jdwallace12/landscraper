@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -142,6 +142,26 @@ export class UI {
     snowLabel.appendChild(snowCheckbox);
     snowRow.appendChild(snowLabel);
     sidebar.appendChild(snowRow);
+
+    // Clouds Toggle
+    const cloudsRow = document.createElement('div');
+    cloudsRow.className = 'slider-group';
+    const cloudsLabel = document.createElement('label');
+    cloudsLabel.style.display = 'flex';
+    cloudsLabel.style.justifyContent = 'space-between';
+    cloudsLabel.style.width = '100%';
+    cloudsLabel.style.cursor = 'pointer';
+    cloudsLabel.innerHTML = '<span>☁️ Show Clouds</span>';
+    const cloudsCheckbox = document.createElement('input');
+    cloudsCheckbox.type = 'checkbox';
+    cloudsCheckbox.addEventListener('change', (e) => {
+      if (this.callbacks.onToggleClouds) {
+        this.callbacks.onToggleClouds(e.target.checked);
+      }
+    });
+    cloudsLabel.appendChild(cloudsCheckbox);
+    cloudsRow.appendChild(cloudsLabel);
+    sidebar.appendChild(cloudsRow);
 
     sidebar.appendChild(this._divider());
 
