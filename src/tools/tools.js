@@ -61,6 +61,42 @@ export const TOOLS = {
     },
   },
 
+  cliff: {
+    name: 'Cliff Band',
+    icon: '🧗',
+    color: '#71717a',
+    cursor: 'crosshair',
+    isBrush: true,
+    apply(heightmap, res, cx, cz, radius, strength) {
+      applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
+        const stepSize = 10.0;
+        const h = heightmap[i];
+        
+        const localH = h / stepSize;
+        const band = Math.floor(localH);
+        const fract = localH - band;
+        
+        // Create an S-curve staircase: gentle terrace slope, then steep cliff face
+        let newFract;
+        if (fract < 0.7) {
+          // 70% of the step is a gentle terrace (20% original slope)
+          newFract = fract * 0.2; 
+        } else {
+          // 30% of the step is the actual steep cliff
+          const t = (fract - 0.7) / 0.3;
+          const smooth = t * t * (3 - 2 * t);
+          newFract = 0.7 * 0.2 + smooth * (1.0 - 0.7 * 0.2);
+        }
+        
+        const targetH = (band + newFract) * stepSize;
+        
+        // Blend towards the terraced geometry
+        const cliffFalloff = Math.pow(falloff, 0.5); 
+        heightmap[i] += (targetH - h) * cliffFalloff * strength * 0.5;
+      });
+    },
+  },
+
   lower: {
     name: 'Lower',
     icon: '🕳️',
@@ -82,9 +118,10 @@ export const TOOLS = {
     isBrush: true,
     apply(heightmap, res, cx, cz, radius, strength) {
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
-        // Smooth inverted dome for carving realistic bowls
-        const targetDrop = strength * falloff * falloff;
-        heightmap[i] -= targetDrop * 0.6;
+        // Flat bottom bowl: carves the sides more evenly 
+        // without digging a deep sharp hole in the center.
+        const flatFalloff = Math.min(1.0, falloff * 1.8);
+        heightmap[i] -= strength * flatFalloff * 0.6;
       });
     },
   },

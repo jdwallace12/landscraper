@@ -30,6 +30,17 @@ export class UI {
   _build() {
     const sidebar = document.getElementById('sidebar');
 
+    // Create topbar
+    const topbar = document.createElement('div');
+    topbar.id = 'topbar';
+    document.body.appendChild(topbar);
+
+    const topbarSliders = document.createElement('div');
+    topbarSliders.style.display = 'flex';
+    topbarSliders.style.flexDirection = 'row';
+    topbarSliders.style.gap = '32px';
+    topbar.appendChild(topbarSliders);
+
     // Title
     const title = document.createElement('div');
     title.className = 'sidebar-title';
@@ -69,19 +80,20 @@ export class UI {
 
     sidebar.appendChild(this._divider());
 
-    // Brush settings
+    // Brush settings (in topbar)
+    this.radiusSlider = this._slider(topbarSliders, 'Brush Size', 1, 100, 16, (v) => {
+      this.callbacks.onBrushRadius(v);
+    }, 1, '<b>[</b> and <b>]</b>');
+
+    this.strengthSlider = this._slider(topbarSliders, 'Strength', 0.05, 2.0, 0.6, (v) => {
+      this.callbacks.onBrushStrength(v);
+    }, 0.05, '<b>Cmd/Ctrl + [</b> and <b>]</b>');
+
+    // Tree settings (in sidebar)
     const brushLabel = document.createElement('div');
     brushLabel.className = 'section-label';
-    brushLabel.textContent = 'Brush';
+    brushLabel.textContent = 'Tree Tool Options';
     sidebar.appendChild(brushLabel);
-
-    this.radiusSlider = this._slider(sidebar, 'Size', 1, 100, 16, (v) => {
-      this.callbacks.onBrushRadius(v);
-    });
-
-    this.strengthSlider = this._slider(sidebar, 'Strength', 0.05, 2.0, 0.6, (v) => {
-      this.callbacks.onBrushStrength(v);
-    }, 0.05);
 
     this.treeDensitySlider = this._slider(sidebar, 'Tree Density', 1, 10, 5, (v) => {
       this.callbacks.onTreeDensity(v);
@@ -112,14 +124,14 @@ export class UI {
     wireframeLabel.style.width = '100%';
     wireframeLabel.style.cursor = 'pointer';
     wireframeLabel.innerHTML = '<span>Show Grid</span>';
-    const wireframeCheckbox = document.createElement('input');
-    wireframeCheckbox.type = 'checkbox';
-    wireframeCheckbox.addEventListener('change', (e) => {
+    this.wireframeCheckbox = document.createElement('input');
+    this.wireframeCheckbox.type = 'checkbox';
+    this.wireframeCheckbox.addEventListener('change', (e) => {
       if (this.callbacks.onToggleWireframe) {
         this.callbacks.onToggleWireframe(e.target.checked);
       }
     });
-    wireframeLabel.appendChild(wireframeCheckbox);
+    wireframeLabel.appendChild(this.wireframeCheckbox);
     wireframeRow.appendChild(wireframeLabel);
     sidebar.appendChild(wireframeRow);
 
@@ -254,16 +266,23 @@ export class UI {
     this.callbacks.onToolChange(key);
   }
 
-  _slider(parent, label, min, max, initial, onChange, step = 1) {
+  _slider(parent, label, min, max, initial, onChange, step = 1, hintText = null) {
     const wrap = document.createElement('div');
     wrap.className = 'slider-group';
 
     const lbl = document.createElement('label');
+    lbl.style.gap = '8px'; // Add space between label and value
     const valSpan = document.createElement('span');
     valSpan.className = 'slider-value';
     valSpan.textContent = initial;
-    lbl.innerHTML = `${label} `;
+    lbl.innerHTML = `<span>${label}</span>`;
     lbl.appendChild(valSpan);
+
+    const inputWrap = document.createElement('div');
+    inputWrap.style.display = 'flex';
+    inputWrap.style.flexDirection = 'column';
+    inputWrap.style.gap = '4px';
+    inputWrap.style.alignItems = 'center';
 
     const input = document.createElement('input');
     input.type = 'range';
@@ -278,9 +297,18 @@ export class UI {
     });
 
     input.valSpan = valSpan;
+    inputWrap.appendChild(input);
+
+    if (hintText) {
+      const hint = document.createElement('div');
+      hint.innerHTML = hintText;
+      hint.style.fontSize = '0.65rem';
+      hint.style.color = 'var(--text-dim)';
+      inputWrap.appendChild(hint);
+    }
 
     wrap.appendChild(lbl);
-    wrap.appendChild(input);
+    wrap.appendChild(inputWrap);
     parent.appendChild(wrap);
     return input;
   }
@@ -313,6 +341,14 @@ export class UI {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         this.callbacks.onSave();
+      }
+      // Grid Toggle Shortcut
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (this.wireframeCheckbox) {
+          this.wireframeCheckbox.checked = !this.wireframeCheckbox.checked;
+          this.wireframeCheckbox.dispatchEvent(new Event('change'));
+        }
       }
       // Brush size with [ ] or strength with Cmd+[ ]
       if (e.metaKey && e.key === '[') {

@@ -44,6 +44,57 @@ body {
   display: block;
 }
 
+/* ---- Topbar ---- */
+#topbar {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 12px 24px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 32px;
+  z-index: 100;
+
+  /* Entrance animation */
+  animation: slideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDown {
+  from {
+    top: -50px;
+    opacity: 0;
+  }
+  to {
+    top: 16px;
+    opacity: 1;
+  }
+}
+
+#topbar .slider-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+#topbar .slider-group label {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+#topbar input[type="range"] {
+  width: 150px;
+  height: 6px;
+}
+
 /* ---- Sidebar ---- */
 #sidebar {
   position: fixed;
