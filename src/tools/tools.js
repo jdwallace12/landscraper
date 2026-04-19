@@ -55,8 +55,10 @@ export const TOOLS = {
     isBrush: true,
     apply(heightmap, res, cx, cz, radius, strength) {
       applyBrush(heightmap, res, cx, cz, radius, (i, falloff) => {
-        // Deep, narrow carve for steep chutes (inverted peak)
-        heightmap[i] -= strength * Math.pow(falloff, 4) * 1.2;
+        // Flat bottom with aggressive steep sides, forming a U-shaped chute.
+        // This avoids digging a massive sharp hole in the center.
+        const chuteFalloff = Math.min(1.0, falloff * 2.5);
+        heightmap[i] -= strength * chuteFalloff * 0.8;
       });
     },
   },

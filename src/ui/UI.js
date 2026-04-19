@@ -270,6 +270,12 @@ export class UI {
     const wrap = document.createElement('div');
     wrap.className = 'slider-group';
 
+    const lblWrap = document.createElement('div');
+    lblWrap.style.display = 'flex';
+    lblWrap.style.flexDirection = 'column';
+    lblWrap.style.gap = '2px';
+    lblWrap.style.alignItems = 'flex-start';
+
     const lbl = document.createElement('label');
     lbl.style.gap = '8px'; // Add space between label and value
     const valSpan = document.createElement('span');
@@ -277,12 +283,15 @@ export class UI {
     valSpan.textContent = initial;
     lbl.innerHTML = `<span>${label}</span>`;
     lbl.appendChild(valSpan);
+    lblWrap.appendChild(lbl);
 
-    const inputWrap = document.createElement('div');
-    inputWrap.style.display = 'flex';
-    inputWrap.style.flexDirection = 'column';
-    inputWrap.style.gap = '4px';
-    inputWrap.style.alignItems = 'center';
+    if (hintText) {
+      const hint = document.createElement('div');
+      hint.innerHTML = hintText;
+      hint.style.fontSize = '0.65rem';
+      hint.style.color = 'var(--text-dim)';
+      lblWrap.appendChild(hint);
+    }
 
     const input = document.createElement('input');
     input.type = 'range';
@@ -297,18 +306,9 @@ export class UI {
     });
 
     input.valSpan = valSpan;
-    inputWrap.appendChild(input);
 
-    if (hintText) {
-      const hint = document.createElement('div');
-      hint.innerHTML = hintText;
-      hint.style.fontSize = '0.65rem';
-      hint.style.color = 'var(--text-dim)';
-      inputWrap.appendChild(hint);
-    }
-
-    wrap.appendChild(lbl);
-    wrap.appendChild(inputWrap);
+    wrap.appendChild(lblWrap);
+    wrap.appendChild(input);
     parent.appendChild(wrap);
     return input;
   }
