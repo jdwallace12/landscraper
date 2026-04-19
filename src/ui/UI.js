@@ -151,7 +151,7 @@ export class UI {
     cloudsLabel.style.justifyContent = 'space-between';
     cloudsLabel.style.width = '100%';
     cloudsLabel.style.cursor = 'pointer';
-    cloudsLabel.innerHTML = '<span>☁️ Show Clouds</span>';
+    cloudsLabel.innerHTML = '<span>☁️ Snow Clouds</span>';
     const cloudsCheckbox = document.createElement('input');
     cloudsCheckbox.type = 'checkbox';
     cloudsCheckbox.addEventListener('change', (e) => {
