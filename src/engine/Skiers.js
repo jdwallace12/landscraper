@@ -22,6 +22,9 @@ export class Skiers {
     // Spatial hash for efficient repulsion
     this._spatialHash = new Map();
     this._gridSize = 20.0;
+
+    // Track map to allow skiers to seek fresh snow
+    this.trackMap = new Uint8Array(terrain.resolution * terrain.resolution);
   }
 
   _updateSpatialHash() {
@@ -73,14 +76,22 @@ export class Skiers {
   }
 
   /** Update all skiers — call each frame with deltaTime, seaLevel, and chairlifts ref */
-  update(dt, seaLevel, chairlifts, isSnowing = false) {
-    const gravity = 10.0;
-    const friction = 0.98;
+  update(dt, seaLevel, chairlifts, isSnowing = false, activeClouds = null) {
+    const gravity = 8.0; // Reduced from 10.0 for slower overall acceleration
+    const friction = 0.97; // Increased base drag (was 0.98)
     const minSpeed = 0.001;
     this._chairlifts = chairlifts;
     const res = this.terrain.resolution;
     const size = this.terrain.size;
     const half = size / 2;
+
+    // Decay the track map over time to represent snow refilling or tracks fading
+    // We decay a random subset of cells to amortize the cost across frames
+    const decayCount = Math.floor(this.trackMap.length / 30);
+    for (let i = 0; i < decayCount; i++) {
+       const idx = Math.floor(Math.random() * this.trackMap.length);
+       if (this.trackMap[idx] > 0) this.trackMap[idx]--;
+    }
 
     this._updateSpatialHash();
 
@@ -88,7 +99,7 @@ export class Skiers {
       if (s.trailStartIndex === undefined) s.trailStartIndex = 0;
 
       // Trail Fading/Overwriting
-      let fadePointsCount = isSnowing ? 6 : 0; // If snowing, remove old tracks over time
+      let fadePointsCount = isSnowing ? 6 : 0; // If snowing everywhere, remove old tracks rapidly
       
       // Advance start index if we exceed max points
       if (s.active && (s.trailPoints.length - s.trailStartIndex) >= 2000 * 3) {
@@ -108,10 +119,22 @@ export class Skiers {
       }
 
       // Update trail geometry buffer for active and inactive (if they still have tracks fading)
-      if (activeLength > 0 || isSnowing) {
+      if (activeLength > 0 || isSnowing || (activeClouds && activeClouds.group.visible)) {
          const posAttr = s.trail.geometry.attributes.position;
-         for (let j = 0; j < activeLength; j++) {
-            posAttr.array[j] = s.trailPoints[s.trailStartIndex + j];
+         for (let j = 0; j < activeLength; j += 3) {
+            const idx = s.trailStartIndex + j;
+            
+            // If under localized cloud shadows, tracks slowly sink into the terrain to simulate being snowed over
+            if (activeClouds && activeClouds.group.visible && activeClouds.isUnderCloud(s.trailPoints[idx], s.trailPoints[idx+2])) {
+               const h = this.terrain.getInterpolatedHeight(s.trailPoints[idx], s.trailPoints[idx+2]);
+               if (s.trailPoints[idx+1] > h - 0.2) {
+                  s.trailPoints[idx+1] -= dt * 0.4; // Sinks roughly 0.4 world units per second
+               }
+            }
+            
+            posAttr.array[j] = s.trailPoints[idx];
+            posAttr.array[j+1] = s.trailPoints[idx+1];
+            posAttr.array[j+2] = s.trailPoints[idx+2];
          }
          posAttr.needsUpdate = true;
          s.trail.geometry.setDrawRange(0, activeLength / 3);
@@ -343,38 +366,79 @@ export class Skiers {
         }
       }
 
-      // Snow-seeking traverse: probe for snow-covered terrain and bias toward it
+      // Fresh powder & terrain seeking traverse: probe forward to steer away from tracked snow or dirt!
       const currentH = this.terrain.getInterpolatedHeight(s.wx, s.wz);
       const snowLine = seaLevel + 28;
-      if (currentH < snowLine + 8) {
-        // Probe 8 directions for higher/snowier terrain
-        const probeDistWorld = 12.0;
+      
+      if (s.speed > 1.0) {
+        const probeDistWorld = 8.0;
         let bestDx = 0, bestDz = 0, bestScore = -Infinity;
-        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+        const forwardAngle = Math.atan2(s.vz, s.vx);
+        
+        // Scan a 180-degree fan in front of the skier
+        for (let angleOffset = -Math.PI/2.5; angleOffset <= Math.PI/2.5; angleOffset += Math.PI / 5) {
+          const angle = forwardAngle + angleOffset;
           const px = s.wx + Math.cos(angle) * probeDistWorld;
           const pz = s.wz + Math.sin(angle) * probeDistWorld;
+          
+          const { gx: pxG, gz: pzG } = this.terrain.worldToGrid(px, pz);
+          let trackedAmount = 0;
+          let isDirt = false;
+          
+          if (pxG >= 0 && pxG < res && pzG >= 0 && pzG < res) {
+             const idx = pzG * res + pxG;
+             trackedAmount = this.trackMap[idx];
+             
+             // Check if it's dirt (below snow line AND not painted over)
+             const ph = this.terrain.heightmap[idx];
+             isDirt = (ph < snowLine) && (this.terrain.snowmap[idx] <= 0.3);
+          }
+          
           const ph = this.terrain.getInterpolatedHeight(px, pz);
-          // Score: prefer terrain near/above snow line, penalize too-steep uphill
-          const heightAboveSnow = ph - snowLine;
           const climbNeeded = Math.max(0, ph - currentH);
-          const score = heightAboveSnow * 1.0 - climbNeeded * 0.5;
+          
+          // Evaluate this direction:
+          // 1. We strongly prefer going straight relative to our current velocity
+          const forwardBias = Math.cos(angleOffset) * 8.0;
+          // 2. We penalize tracked-out snow heavily so they hunt for fresh powder
+          const trackPenalty = trackedAmount * 0.08;
+          // 3. We absolutely refuse to ski uphill unless necessary
+          const hillPenalty = climbNeeded * 30.0;
+          // 4. We desperately avoid dirt
+          const dirtPenalty = isDirt ? 100.0 : 0;
+          
+          const score = forwardBias - trackPenalty - hillPenalty - dirtPenalty;
+          
           if (score > bestScore) {
             bestScore = score;
             bestDx = Math.cos(angle);
             bestDz = Math.sin(angle);
           }
         }
-        if (bestScore > -5) {
-          // Gentle bias toward snowier terrain
-          const traverseStrength = 0.8;
-          s.vx += bestDx * traverseStrength * dt;
-          s.vz += bestDz * traverseStrength * dt;
+        
+        // Gently nudge them towards the best untouched snow
+        const traverseStrength = 3.0;
+        s.vx += bestDx * traverseStrength * dt;
+        s.vz += bestDz * traverseStrength * dt;
+        
+        // Mark the current spot as tracked!
+        const { gx: cgx, gz: cgz } = this.terrain.worldToGrid(s.wx, s.wz);
+        if (cgx >= 0 && cgx < res && cgz >= 0 && cgz < res) {
+           const cidx = cgz * res + cgx;
+           // Add heavy tracks
+           this.trackMap[cidx] = Math.min(255, this.trackMap[cidx] + 25);
         }
       }
 
-      // Friction
-      s.vx *= friction;
-      s.vz *= friction;
+      // Friction: Scrub speed more heavily on steep terrain when going fast
+      let currentFriction = friction;
+      if (s.speed > 1.2) {
+        currentFriction -= (s.speed - 1.2) * 0.015;
+      }
+      currentFriction = Math.max(0.80, currentFriction); // cap max friction
+
+      s.vx *= currentFriction;
+      s.vz *= currentFriction;
 
       s.speed = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
 
@@ -403,12 +467,18 @@ export class Skiers {
       // Calculate perpendicular (cross) vector to current velocity for carving
       let carveX = 0, carveZ = 0;
       if (s.speed > 0.01) {
+        // Frequency increases aggressively with speed for very tight, quick turns
+        const turnFreq = 3.5 + s.speed * 2.5; 
+        s.carvePhase += dt * turnFreq;
+
         // perpendicular to [vx, vz] is [-vz, vx]
         const px = -s.vz / s.speed;
         const pz = s.vx / s.speed;
-        // Wider, faster oscillation for more turny carving
-        const carveStrength = Math.min(s.speed * 1.2, 3.8); 
-        const carveForce = Math.sin(s.timeAlive * 4.8 + s.carvePhase) * carveStrength;
+        
+        // Massive carving amplitude limit allows extreme cross-slope travel (exaggerated carving)
+        const carveStrength = Math.min(s.speed * 2.2, 8.0); 
+        const carveForce = Math.sin(s.carvePhase) * carveStrength;
+        
         carveX = px * carveForce;
         carveZ = pz * carveForce;
       }
@@ -490,6 +560,7 @@ export class Skiers {
       s.trail.material.dispose();
     }
     this.skiers = [];
+    if (this.trackMap) this.trackMap.fill(0);
   }
 
   get count() {

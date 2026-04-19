@@ -23,6 +23,7 @@ let currentToolKey = 'raise';
 let treeDensity = 5;
 let chairliftStartPoint = null;
 let isSnowing = false;
+let isClouds = false;
 let currentFileHandle = null;
 
 // ---- Init ----
@@ -93,6 +94,7 @@ const ui = new UI({
     snow.toggle(checked);
   },
   onToggleClouds(checked) {
+    isClouds = checked;
     clouds.toggle(checked);
   },
   onUndo() { doUndo(); },
@@ -368,7 +370,7 @@ function animate() {
     boulders.updatePositions(seaLevel);
   }
 
-  skiers.update(dt, seaLevel, chairlifts, isSnowing);
+  skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
   chairlifts.update(dt);
   snow.update(dt);
   clouds.update(dt);

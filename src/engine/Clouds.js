@@ -97,6 +97,27 @@ export class Clouds {
     // Setup particles assigned to clouds
     if (this.cloudMeshes.count > 0) {
         this.mesh.visible = true;
+        
+        // Build a spatial lookup map for the cloud shadows
+        this.cloudMap = new Uint8Array(res * res);
+        const cellSize = size / res;
+        for (const c of this.cloudsData) {
+            const radius = Math.max(c.sx, c.sz) * 1.5;
+            const { gx, gz } = this.terrain.worldToGrid(c.x, c.z);
+            const rGrid = Math.ceil(radius / cellSize);
+            for (let dz = -rGrid; dz <= rGrid; dz++) {
+                for (let dx = -rGrid; dx <= rGrid; dx++) {
+                    if (dx*dx + dz*dz <= rGrid*rGrid) {
+                        const nx = gx + dx;
+                        const nz = gz + dz;
+                        if (nx >= 0 && nx < res && nz >= 0 && nz < res) {
+                            this.cloudMap[nz * res + nx] = 1;
+                        }
+                    }
+                }
+            }
+        }
+
         const { positions, velocities, origins } = this.particlesParams;
         for(let i=0; i<this.particleCount; i++) {
             const cloud = this.cloudsData[Math.floor(Math.random() * this.cloudMeshes.count)];
@@ -120,7 +141,17 @@ export class Clouds {
         this.geometry.attributes.origin.needsUpdate = true;
     } else {
         this.mesh.visible = false;
+        this.cloudMap = null;
     }
+  }
+
+  isUnderCloud(wx, wz) {
+    if (!this.group.visible || !this.cloudMap) return false;
+    const { gx, gz } = this.terrain.worldToGrid(wx, wz);
+    if (gx >= 0 && gx < this.terrain.resolution && gz >= 0 && gz < this.terrain.resolution) {
+        return this.cloudMap[gz * this.terrain.resolution + gx] === 1;
+    }
+    return false;
   }
 
   toggle(isVisible) {
