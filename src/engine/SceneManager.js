@@ -63,6 +63,7 @@ export class SceneManager {
     // Custom panning
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
+      if (this._skierMode) return; // Don't interfere during ski mode
       if (e.key === 'Shift') this.controls.keyPanSpeed = 150.0;
       const verticalSpeed = e.shiftKey ? 24.0 : 8.0;
       if (e.key.toLowerCase() === 'w') {

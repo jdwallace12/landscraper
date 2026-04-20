@@ -22,7 +22,10 @@ export class PlayerSkier {
     this.active = false;
 
     // Input state
-    this._keys = { left: false, right: false, forward: false, brake: false };
+    this._keys = { left: false, right: false, lookUp: false, lookDown: false, brake: false };
+
+    // Camera pitch (controlled by W/S)
+    this.cameraPitch = 0; // radians, positive = look up
 
     // Trail
     this._trailMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.9 });
@@ -86,7 +89,8 @@ export class PlayerSkier {
   /** Remove the player skier and clean up */
   despawn() {
     this.active = false;
-    this._keys = { left: false, right: false, forward: false, brake: false };
+    this._keys = { left: false, right: false, lookUp: false, lookDown: false, brake: false };
+    this.cameraPitch = 0;
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
 
@@ -148,19 +152,19 @@ export class PlayerSkier {
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
     }
 
-    // Forward push (W key) — applies force in the heading direction (like pole-pushing / skating)
-    if (this._keys.forward) {
-      const pushForce = 5.0; // gentle push — like pole-planting
-      this.vx += Math.sin(this.heading) * pushForce * dt;
-      this.vz += Math.cos(this.heading) * pushForce * dt;
+    // Camera pitch (W/S keys)
+    const pitchSpeed = 1.5; // radians/sec
+    if (this._keys.lookUp) this.cameraPitch = Math.min(this.cameraPitch + pitchSpeed * dt, 1.0);
+    if (this._keys.lookDown) this.cameraPitch = Math.max(this.cameraPitch - pitchSpeed * dt, -0.5);
+    // Gently return to neutral when not pressing
+    if (!this._keys.lookUp && !this._keys.lookDown) {
+      this.cameraPitch *= 0.92;
     }
 
-    // Tuck (reduce drag when going forward) or Brake (increase drag)
+    // Friction
     let friction = baseFriction;
-    if (this._keys.forward && this.speed > 1.0) {
-      friction = 0.995; // at speed, W also reduces drag (tuck position)
-    } else if (this._keys.brake) {
-      friction = 0.92; // heavy drag = snowplow stop
+    if (this._keys.brake) {
+      friction = 0.92; // snowplow stop
     }
 
     this.vx *= friction;
@@ -211,16 +215,19 @@ export class PlayerSkier {
   getCameraTarget() {
     const h = this.terrain.getInterpolatedHeight(this.wx, this.wz);
     const camDist = 12;
-    const camHeight = 6;
+    const camHeight = 6 + this.cameraPitch * 5; // W shifts camera up, S shifts down
 
     // Position camera behind the skier based on heading
     const camX = this.wx - Math.sin(this.heading) * camDist;
     const camZ = this.wz - Math.cos(this.heading) * camDist;
     const camY = h + camHeight;
 
+    // Look-at point shifts vertically with pitch
+    const lookY = h + 1.0 + this.cameraPitch * 8;
+
     return {
       position: new THREE.Vector3(camX, camY, camZ),
-      lookAt: new THREE.Vector3(this.wx, h + 1.0, this.wz),
+      lookAt: new THREE.Vector3(this.wx, lookY, this.wz),
     };
   }
 
@@ -228,19 +235,21 @@ export class PlayerSkier {
   _onKeyDown(e) {
     if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
     switch (e.key) {
-      case 'a': case 'A': case 'ArrowLeft':  this._keys.left = true; break;
-      case 'd': case 'D': case 'ArrowRight': this._keys.right = true; break;
-      case 'w': case 'W': case 'ArrowUp':    this._keys.forward = true; break;
-      case 's': case 'S': case 'ArrowDown':   this._keys.brake = true; break;
+      case 'a': case 'A':  this._keys.left = true; break;
+      case 'd': case 'D':  this._keys.right = true; break;
+      case 'w': case 'W':  this._keys.lookUp = true; break;
+      case 's': case 'S':  this._keys.lookDown = true; break;
+      case 'ArrowDown':    this._keys.brake = true; break;
     }
   }
 
   _onKeyUp(e) {
     switch (e.key) {
-      case 'a': case 'A': case 'ArrowLeft':  this._keys.left = false; break;
-      case 'd': case 'D': case 'ArrowRight': this._keys.right = false; break;
-      case 'w': case 'W': case 'ArrowUp':    this._keys.forward = false; break;
-      case 's': case 'S': case 'ArrowDown':   this._keys.brake = false; break;
+      case 'a': case 'A':  this._keys.left = false; break;
+      case 'd': case 'D':  this._keys.right = false; break;
+      case 'w': case 'W':  this._keys.lookUp = false; break;
+      case 's': case 'S':  this._keys.lookDown = false; break;
+      case 'ArrowDown':    this._keys.brake = false; break;
     }
   }
 
