@@ -137,17 +137,28 @@ export class PlayerSkier {
     this.vx -= gradX * gravity * dt;
     this.vz -= gradZ * gravity * dt;
 
-    // Player steering
-    const turnRate = 2.5; // radians/sec
-    if (this._keys.left) this.heading += turnRate * dt;
-    if (this._keys.right) this.heading -= turnRate * dt;
+    // --- Weighted Steering (Carving) ---
+    const maxTurnAccel = 4.0; // how fast you can initiate a turn
+    const turnDamping = 0.92; // how quickly steering stabilizes
+    
+    if (!this.angularVelocity) this.angularVelocity = 0;
+    
+    if (this._keys.left) this.angularVelocity += maxTurnAccel * dt;
+    if (this._keys.right) this.angularVelocity -= maxTurnAccel * dt;
+    
+    this.angularVelocity *= turnDamping;
+    this.heading += this.angularVelocity * dt;
 
     // Steering force: push velocity towards the heading direction
+    // At high speeds, it's harder to change direction (centrifugal force feel)
     this.speed = Math.sqrt(this.vx * this.vx + this.vz * this.vz);
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      const steerStrength = 4.0; // how quickly the skier redirects
+      
+      // Carving strength: higher speed = lower redirection (simulating edge grip)
+      const steerStrength = Math.max(1.0, 5.0 - (this.speed * 0.1)); 
+      
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
     }
@@ -195,12 +206,21 @@ export class PlayerSkier {
     const newH = this.terrain.getInterpolatedHeight(this.wx, this.wz);
     this.mesh.position.set(this.wx, newH + 0.15, this.wz);
 
-    // Smoothly face heading direction (even when walking slowly)
+    // --- Mesh Rotation & Leaning ---
+    // Smoothly face heading direction
     const targetRot = this.heading;
     let diff = targetRot - this.mesh.rotation.y;
     while (diff < -Math.PI) diff += Math.PI * 2;
     while (diff > Math.PI) diff -= Math.PI * 2;
     this.mesh.rotation.y += diff * 8.0 * dt;
+
+    // Lean into the turn based on angular velocity
+    // And tilt forward/back based on camera pitch (visual flair)
+    const targetLean = -this.angularVelocity * 0.15;
+    if (this._currentLean === undefined) this._currentLean = 0;
+    this._currentLean += (targetLean - this._currentLean) * 5.0 * dt;
+    this.mesh.rotation.z = this._currentLean;
+    this.mesh.rotation.x = this.cameraPitch * 0.5; // tilt with look angle
 
     // Trail
     this._trailPoints.push(this.wx, newH + 0.15, this.wz);
