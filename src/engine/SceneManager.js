@@ -102,8 +102,42 @@ export class SceneManager {
   }
 
   render() {
-    this.controls.update();
+    if (!this._skierMode) this.controls.update();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Enter 3rd-person skier camera mode */
+  enterSkierMode() {
+    this._skierMode = true;
+    // Save current state for restoration
+    this._savedCamPos = this.camera.position.clone();
+    this._savedTarget = this.controls.target.clone();
+    this.controls.enabled = false;
+  }
+
+  /** Exit skier camera mode, restore previous view */
+  exitSkierMode() {
+    this._skierMode = false;
+    this.controls.enabled = true;
+    if (this._savedCamPos) {
+      this.camera.position.copy(this._savedCamPos);
+      this.controls.target.copy(this._savedTarget);
+    }
+  }
+
+  /** Update chase camera to follow the player skier (call each frame in skier mode) */
+  updateSkierCamera(targetPos, lookAtPos) {
+    if (!this._skierMode) return;
+    // Smooth lerp for cinematic feel
+    this.camera.position.lerp(targetPos, 0.08);
+    // Look at the skier
+    const currentLookAt = new THREE.Vector3();
+    this.camera.getWorldDirection(currentLookAt);
+    this.camera.lookAt(lookAtPos);
+  }
+
+  get isSkierMode() {
+    return !!this._skierMode;
   }
 
   _buildSky() {

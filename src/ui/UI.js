@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -77,6 +77,16 @@ export class UI {
       toolGrid.appendChild(btn);
     });
     sidebar.appendChild(toolGrid);
+
+    // Ski Mode Button (right under tools)
+    const skiBtn = document.createElement('button');
+    skiBtn.className = 'ski-mode-btn';
+    skiBtn.innerHTML = '🎿 Ski Mode';
+    skiBtn.title = 'Enter 3rd person skiing! (ESC to exit)';
+    skiBtn.addEventListener('click', () => {
+      if (this.callbacks.onToggleSkierMode) this.callbacks.onToggleSkierMode();
+    });
+    sidebar.appendChild(skiBtn);
 
     sidebar.appendChild(this._divider());
 
@@ -174,6 +184,23 @@ export class UI {
     cloudsLabel.appendChild(cloudsCheckbox);
     cloudsRow.appendChild(cloudsLabel);
     sidebar.appendChild(cloudsRow);
+
+    // Skier HUD (hidden by default, shown during ski mode)
+    this._skierHud = document.createElement('div');
+    this._skierHud.id = 'skier-hud';
+    this._skierHud.style.display = 'none';
+    this._skierHud.innerHTML = `
+      <div class="skier-hud-speed">
+        <span class="skier-hud-label">SPEED</span>
+        <span class="skier-hud-value" id="skier-speed">0</span>
+        <span class="skier-hud-unit">mph</span>
+      </div>
+      <div class="skier-hud-controls">
+        <span><b>W</b> Push · <b>S</b> Brake · <b>A/D</b> Steer</span>
+        <span style="opacity:0.6">Press <b>ESC</b> to exit</span>
+      </div>
+    `;
+    document.body.appendChild(this._skierHud);
 
     sidebar.appendChild(this._divider());
 
@@ -380,6 +407,40 @@ export class UI {
       setTimeout(() => {
         this.saveBtn.innerHTML = oldText;
       }, 2000);
+    }
+  }
+
+  showSkierHUD(show) {
+    if (this._skierHud) {
+      this._skierHud.style.display = show ? 'flex' : 'none';
+    }
+    // Hide sidebar and topbar during ski mode
+    const sidebar = document.getElementById('sidebar');
+    const topbar = document.getElementById('topbar');
+    if (sidebar) sidebar.style.display = show ? 'none' : '';
+    if (topbar) topbar.style.display = show ? 'none' : '';
+  }
+
+  updateSkierSpeed(speed) {
+    const el = document.getElementById('skier-speed');
+    if (el) {
+      // Convert to mph feel
+      el.textContent = Math.round(speed * 7.5);
+    }
+  }
+
+  showSkierPlacement(show) {
+    // Show a hint banner when in placement mode
+    if (show) {
+      if (!this._placementHint) {
+        this._placementHint = document.createElement('div');
+        this._placementHint.id = 'skier-placement-hint';
+        this._placementHint.innerHTML = '🎿 Click anywhere on the terrain to drop in!';
+        document.body.appendChild(this._placementHint);
+      }
+      this._placementHint.style.display = 'block';
+    } else if (this._placementHint) {
+      this._placementHint.style.display = 'none';
     }
   }
 }

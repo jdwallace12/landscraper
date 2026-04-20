@@ -12,6 +12,7 @@ import { Snow } from './engine/Snow.js';
 import { Boulders } from './engine/Boulders.js';
 import { UI } from './ui/UI.js';
 import { Clouds } from './engine/Clouds.js';
+import { PlayerSkier } from './engine/PlayerSkier.js';
 
 // ---- Boot ----
 (async () => {
@@ -24,6 +25,8 @@ let treeDensity = 5;
 let chairliftStartPoint = null;
 let isSnowing = false;
 let isClouds = false;
+let isSkierMode = false;
+let isSkierPlacementMode = false; // waiting for user to click spawn point
 let currentFileHandle = null;
 
 // ---- Init ----
@@ -39,6 +42,7 @@ const chairlifts = new Chairlifts(terrain);
 const snow = new Snow(400);
 const history = new History(50);
 const clouds = new Clouds(terrain);
+const playerSkier = new PlayerSkier(terrain);
 
 scene.add(terrain.mesh);
 scene.add(water.mesh);
@@ -48,6 +52,7 @@ scene.add(skiers.group);
 scene.add(chairlifts.group);
 scene.add(snow.group);
 scene.add(clouds.group);
+scene.add(playerSkier.group);
 clouds.updatePositions(seaLevel);
 
 const brush = new BrushEngine(terrain, scene.camera, canvas);
@@ -97,6 +102,7 @@ const ui = new UI({
     isClouds = checked;
     clouds.toggle(checked);
   },
+  onToggleSkierMode() { toggleSkierMode(); },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },
@@ -293,8 +299,59 @@ function loadMapData(data) {
   ui.setUndoRedoState(history.canUndo(), history.canRedo());
 }
 
+// ---- Skier Mode ----
+function toggleSkierMode() {
+  if (isSkierMode) {
+    exitSkierMode();
+  } else if (isSkierPlacementMode) {
+    // Cancel placement mode
+    isSkierPlacementMode = false;
+    ui.showSkierPlacement(false);
+  } else {
+    // Enter placement mode — next click on terrain will spawn
+    isSkierPlacementMode = true;
+    ui.showSkierPlacement(true);
+  }
+}
+
+function enterSkierModeAt(wx, wz) {
+  isSkierPlacementMode = false;
+  ui.showSkierPlacement(false);
+  playerSkier.spawn(wx, wz);
+  scene.enterSkierMode();
+  isSkierMode = true;
+  brush.cursorMesh.visible = false;
+  ui.showSkierHUD(true);
+}
+
+function exitSkierMode() {
+  if (!isSkierMode) return;
+  playerSkier.despawn();
+  scene.exitSkierMode();
+  isSkierMode = false;
+  brush.cursorMesh.visible = true;
+  ui.showSkierHUD(false);
+}
+
+// Listen for Escape to exit ski mode
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isSkierMode) {
+    exitSkierMode();
+  }
+});
+
 // ---- Interaction wiring (Undo, Placements, Orbit controls) ----
 function handleInteractStart(e) {
+  if (isSkierMode) return; // Suppress editor interactions during ski mode
+
+  // Skier placement mode: click to spawn
+  if (isSkierPlacementMode) {
+    if (brush.intersectionPoint) {
+      enterSkierModeAt(brush.intersectionPoint.x, brush.intersectionPoint.z);
+    }
+    return;
+  }
+
   if (e.type === 'mousedown' && (e.button !== 0 || e.altKey || e.metaKey)) return;
   if (e.type === 'touchstart' && e.touches.length !== 1) return;
 
@@ -364,18 +421,36 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = scene.getDelta();
 
-  const modified = brush.update(seaLevel);
-  if (modified) {
-    trees.updatePositions(seaLevel);
-    boulders.updatePositions(seaLevel);
+  if (isSkierMode) {
+    // Player skier mode: update player + chase camera
+    const alive = playerSkier.update(dt);
+    if (!alive) {
+      exitSkierMode();
+    } else {
+      const cam = playerSkier.getCameraTarget();
+      scene.updateSkierCamera(cam.position, cam.lookAt);
+      // Update speed HUD
+      ui.updateSkierSpeed(playerSkier.speed);
+    }
+    // Still update the world
+    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
+    chairlifts.update(dt);
+    snow.update(dt);
+    clouds.update(dt);
+    water.update(dt);
+  } else {
+    const modified = brush.update(seaLevel);
+    if (modified) {
+      trees.updatePositions(seaLevel);
+      boulders.updatePositions(seaLevel);
+    }
+    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
+    chairlifts.update(dt);
+    snow.update(dt);
+    clouds.update(dt);
+    water.update(dt);
   }
 
-  skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
-  chairlifts.update(dt);
-  snow.update(dt);
-  clouds.update(dt);
-
-  water.update(dt);
   scene.render();
 }
 animate();
