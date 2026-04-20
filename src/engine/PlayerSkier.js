@@ -211,9 +211,10 @@ export class PlayerSkier {
     const posAttr = this._trail.geometry.attributes.position;
     const count = Math.min(this._trailPoints.length, maxTrailVerts * 3);
     const offset = this._trailPoints.length - count;
-    for (let i = 0; i < count; i++) {
-      posAttr.array[i] = this._trailPoints[offset + i];
-    }
+    
+    // Optim: Use bulk copy instead of for-loop
+    posAttr.array.set(this._trailPoints.slice(offset, offset + count));
+    
     posAttr.needsUpdate = true;
     this._trail.geometry.setDrawRange(0, count / 3);
 

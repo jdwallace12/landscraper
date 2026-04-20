@@ -111,9 +111,28 @@ export class SceneManager {
   enterSkierMode() {
     this._skierMode = true;
     this._currentLookAt = null; // Reset focus smoothing for new session
+    
     // Save current state for restoration
     this._savedCamPos = this.camera.position.clone();
     this._savedTarget = this.controls.target.clone();
+    this._savedFar = this.camera.far;
+    this._savedFogDensity = this.scene.fog.density;
+
+    // Optimization: reduce draw distance & thicken fog to mask it
+    this.camera.far = 800; // Even shorter draw distance for thicker fog
+    this.camera.updateProjectionMatrix();
+    this.scene.fog.density = 0.007; // Much thicker fog during skiing
+
+    // Shadow Optimization: Shrink shadow frustum and center on player
+    if (this.sun) {
+      const s = 50; // tight 100x100 frustum around player
+      this.sun.shadow.camera.left = -s;
+      this.sun.shadow.camera.right = s;
+      this.sun.shadow.camera.top = s;
+      this.sun.shadow.camera.bottom = -s;
+      this.sun.shadow.camera.updateProjectionMatrix();
+    }
+
     this.controls.enabled = false;
   }
 
@@ -121,6 +140,30 @@ export class SceneManager {
   exitSkierMode() {
     this._skierMode = false;
     this._currentLookAt = null;
+    
+    // Restore settings
+    if (this._savedFar !== undefined) {
+      this.camera.far = this._savedFar;
+      this.camera.updateProjectionMatrix();
+    }
+    if (this._savedFogDensity !== undefined) {
+      this.scene.fog.density = this._savedFogDensity;
+    }
+
+    // Restore shadow frustum
+    if (this.sun) {
+      const s = 300;
+      this.sun.shadow.camera.left = -s;
+      this.sun.shadow.camera.right = s;
+      this.sun.shadow.camera.top = s;
+      this.sun.shadow.camera.bottom = -s;
+      this.sun.shadow.camera.updateProjectionMatrix();
+      // Restore sun pos
+      this.sun.position.set(80, 120, 60);
+      this.sun.target.position.set(0, 0, 0);
+      this.sun.target.updateMatrixWorld();
+    }
+
     this.controls.enabled = true;
     if (this._savedCamPos) {
       this.camera.position.copy(this._savedCamPos);
@@ -144,6 +187,14 @@ export class SceneManager {
     this._currentLookAt.lerp(lookAtPos, dampLook);
     
     this.camera.lookAt(this._currentLookAt);
+
+    // Dynamic Shadow: center shadow map on player
+    if (this.sun) {
+      const sunOffset = new THREE.Vector3(80, 120, 60); // Original relative sun pos
+      this.sun.position.copy(lookAtPos).add(sunOffset);
+      this.sun.target.position.copy(lookAtPos);
+      this.sun.target.updateMatrixWorld();
+    }
   }
 
   get isSkierMode() {
@@ -194,6 +245,7 @@ export class SceneManager {
     sun.shadow.camera.bottom = -300;
     sun.shadow.bias = -0.0005;
     this.scene.add(sun);
+    this.sun = sun;
   }
 
   _onResize() {

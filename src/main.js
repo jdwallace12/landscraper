@@ -432,9 +432,7 @@ function animate() {
       // Update speed HUD
       ui.updateSkierSpeed(playerSkier.speed);
     }
-    // Still update the world
-    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
-    chairlifts.update(dt);
+    // Optim: Skip heavy world updates like AI skiers and chairlift physics during ski mode
     snow.update(dt);
     clouds.update(dt);
     water.update(dt);
