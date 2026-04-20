@@ -428,7 +428,7 @@ function animate() {
       exitSkierMode();
     } else {
       const cam = playerSkier.getCameraTarget();
-      scene.updateSkierCamera(cam.position, cam.lookAt);
+      scene.updateSkierCamera(cam.position, cam.lookAt, dt);
       // Update speed HUD
       ui.updateSkierSpeed(playerSkier.speed);
     }

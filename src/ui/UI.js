@@ -196,7 +196,7 @@ export class UI {
         <span class="skier-hud-unit">mph</span>
       </div>
       <div class="skier-hud-controls">
-        <span><b>A/D</b> Steer · <b>W/S</b> Look Up/Down · <b>↓</b> Brake</span>
+        <span><b>←/→</b> Steer · <b>↑</b> Push · <b>↓</b> Brake · <b>W/S</b> Look</span>
         <span style="opacity:0.6">Press <b>ESC</b> to exit</span>
       </div>
     `;

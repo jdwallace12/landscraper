@@ -110,6 +110,7 @@ export class SceneManager {
   /** Enter 3rd-person skier camera mode */
   enterSkierMode() {
     this._skierMode = true;
+    this._currentLookAt = null; // Reset focus smoothing for new session
     // Save current state for restoration
     this._savedCamPos = this.camera.position.clone();
     this._savedTarget = this.controls.target.clone();
@@ -119,6 +120,7 @@ export class SceneManager {
   /** Exit skier camera mode, restore previous view */
   exitSkierMode() {
     this._skierMode = false;
+    this._currentLookAt = null;
     this.controls.enabled = true;
     if (this._savedCamPos) {
       this.camera.position.copy(this._savedCamPos);
@@ -127,14 +129,21 @@ export class SceneManager {
   }
 
   /** Update chase camera to follow the player skier (call each frame in skier mode) */
-  updateSkierCamera(targetPos, lookAtPos) {
+  updateSkierCamera(targetPos, lookAtPos, dt) {
     if (!this._skierMode) return;
-    // Smooth lerp for cinematic feel
-    this.camera.position.lerp(targetPos, 0.08);
-    // Look at the skier
-    const currentLookAt = new THREE.Vector3();
-    this.camera.getWorldDirection(currentLookAt);
-    this.camera.lookAt(lookAtPos);
+
+    // Frame-rate independent exponential damping
+    // Using a factor for position and a slightly faster one for focus
+    const dampPos = 1 - Math.pow(0.001, dt); // Arrive at 99.9% in 1s
+    const dampLook = 1 - Math.pow(0.0001, dt);
+
+    this.camera.position.lerp(targetPos, dampPos);
+
+    // Smooth the look-at target to reduce micro-jitter from terrain snapping
+    if (!this._currentLookAt) this._currentLookAt = lookAtPos.clone();
+    this._currentLookAt.lerp(lookAtPos, dampLook);
+    
+    this.camera.lookAt(this._currentLookAt);
   }
 
   get isSkierMode() {
