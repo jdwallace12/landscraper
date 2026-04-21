@@ -264,10 +264,6 @@ function loadMapData(data) {
 
   history.push(terrain.snapshot()); // Save old state for undo
 
-  // Restore Terrain
-  terrain.heightmap.set(data.heightmap);
-  if (data.snowmap) terrain.snowmap.set(data.snowmap);
-  
   // Restore Settings
   seaLevel = data.seaLevel ?? -1;
   currentBaseElevation = data.baseElevation ?? 0;
@@ -276,6 +272,12 @@ function loadMapData(data) {
   ui.setBaseElevationSlider(currentBaseElevation);
   
   water.setSeaLevel(seaLevel);
+  
+  // Restore Terrain through Worker to trigger geometry calculations
+  terrain.restore({
+    heightmap: data.heightmap,
+    snowmap: data.snowmap
+  });
   terrain.updateMesh(seaLevel);
 
   // Clear existing items
