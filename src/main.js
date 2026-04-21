@@ -1,3 +1,12 @@
+function sendLog(type, msg) {
+  fetch('http://localhost:9999', { method: 'POST', body: JSON.stringify({type, msg}) }).catch(e=>e);
+}
+const oldLog = console.log;
+const oldError = console.error;
+console.log = (...args) => { oldLog(...args); sendLog('log', args.join(' ')); };
+console.error = (...args) => { oldError(...args); sendLog('error', args.join(' ')); };
+window.onerror = (msg, url, line) => { sendLog('uncaught', `${msg} at ${line}`); };
+
 import * as THREE from 'three/webgpu';
 import { SceneManager } from './engine/SceneManager.js';
 import { Terrain } from './engine/Terrain.js';
@@ -417,18 +426,33 @@ canvas.addEventListener('touchend', handleInteractEnd);
 canvas.addEventListener('touchcancel', handleInteractEnd);
 
 // ---- Render loop ----
+const PHYSICS_DT = 1 / 120; // Fixed 120Hz physics timestep
+let physicsAccumulator = 0;
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = scene.getDelta();
 
   if (isSkierMode) {
-    // Player skier mode: update player + chase camera
-    const alive = playerSkier.update(dt);
+    physicsAccumulator += Math.min(dt, 0.05); // Cap to prevent spiral of death on tab-away
+    let alive = true;
+    while (physicsAccumulator >= PHYSICS_DT) {
+      alive = playerSkier.update(PHYSICS_DT);
+      physicsAccumulator -= PHYSICS_DT;
+      if (!alive) break;
+    }
+    
     if (!alive) {
+      physicsAccumulator = 0;
       exitSkierMode();
     } else {
-      const cam = playerSkier.getCameraTarget();
+      // Interpolate visual position for the remaining sub-frame fraction
+      const alpha = physicsAccumulator / PHYSICS_DT;
+      playerSkier.interpolateVisuals(alpha);
+
+      const cam = playerSkier.getCameraTarget(alpha);
       scene.updateSkierCamera(cam.position, cam.lookAt, dt);
+      
       // Update speed HUD
       ui.updateSkierSpeed(playerSkier.speed);
     }
@@ -437,6 +461,7 @@ function animate() {
     clouds.update(dt);
     water.update(dt);
   } else {
+    physicsAccumulator = 0;
     const modified = brush.update(seaLevel);
     if (modified) {
       trees.updatePositions(seaLevel);

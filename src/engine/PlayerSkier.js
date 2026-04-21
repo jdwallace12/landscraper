@@ -27,16 +27,28 @@ export class PlayerSkier {
     // Camera pitch (controlled by W/S)
     this.cameraPitch = 0; // radians, positive = look up
 
+    // Smooth height tracking (prevents Y-axis snapping/jitter)
+    this._smoothY = 0;
+
+    // Previous state for visual interpolation
+    this._prevWx = 0;
+    this._prevWz = 0;
+    this._prevSmoothY = 0;
+
+    // Pre-allocated vectors (avoid GC micro-pauses from per-frame allocations)
+    this._camPosVec = new THREE.Vector3();
+    this._lookAtVec = new THREE.Vector3();
+
     // Trail
     this._trailMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.9 });
     this._trail = null;
     this._trailPoints = [];
 
     // Shared materials
-    this._bodyMat = new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.6 }); // Blue jacket (player distinct)
+    this._bodyMat = new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.6 }); // Blue jacket
     this._pantsMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.7 });
     this._skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
-    this._skiMat = new THREE.MeshStandardMaterial({ color: 0x00e676, roughness: 0.3, metalness: 0.2 }); // Green skis (player distinct)
+    this._skiMat = new THREE.MeshStandardMaterial({ color: 0x00e676, roughness: 0.3, metalness: 0.2 }); // Green skis
 
     // Bind input handlers
     this._onKeyDown = this._onKeyDown.bind(this);
@@ -52,10 +64,17 @@ export class PlayerSkier {
     this.speed = 0;
     this.active = true;
     this._trailPoints = [];
+    this.angularVelocity = 0;
+
+    // Initialize smooth height at exact terrain height
+    const h = this.terrain.getInterpolatedHeight(wx, wz);
+    this._smoothY = h;
+    this._prevWx = wx;
+    this._prevWz = wz;
+    this._prevSmoothY = h;
 
     // Build mesh
     this.mesh = this._buildSkier();
-    const h = this.terrain.getInterpolatedHeight(wx, wz);
     this.mesh.position.set(wx, h + 0.15, wz);
     this.group.add(this.mesh);
 
@@ -91,6 +110,7 @@ export class PlayerSkier {
     this.active = false;
     this._keys = { left: false, right: false, lookUp: false, lookDown: false, forward: false, brake: false };
     this.cameraPitch = 0;
+    
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
 
@@ -107,12 +127,17 @@ export class PlayerSkier {
     this._trailPoints = [];
   }
 
-  /** Update the player skier each frame. Returns false if skier went out of bounds. */
+  /** Run the physics math correctly decoupled from visual rendering */
   update(dt) {
     if (!this.active) return false;
 
-    const gravity = 9.0;
-    const baseFriction = 0.975;
+    // Store previous state for interpolation
+    this._prevWx = this.wx;
+    this._prevWz = this.wz;
+    this._prevSmoothY = this._smoothY;
+
+    const gravity = 18.0; // Increased for faster downhill acceleration
+    const baseFriction = 0.985; // Less drag, holds speed better
     const res = this.terrain.resolution;
     const size = this.terrain.size;
     const cellSize = size / (res - 1);
@@ -138,10 +163,8 @@ export class PlayerSkier {
     this.vz -= gradZ * gravity * dt;
 
     // --- Weighted Steering (Carving) ---
-    const maxTurnAccel = 4.0; // how fast you can initiate a turn
-    const turnDamping = 0.92; // how quickly steering stabilizes
-    
-    if (!this.angularVelocity) this.angularVelocity = 0;
+    const maxTurnAccel = 10.0; // Snappier steering response
+    const turnDamping = 0.90; // Stabilize quickly
     
     if (this._keys.left) this.angularVelocity += maxTurnAccel * dt;
     if (this._keys.right) this.angularVelocity -= maxTurnAccel * dt;
@@ -150,22 +173,19 @@ export class PlayerSkier {
     this.heading += this.angularVelocity * dt;
 
     // Steering force: push velocity towards the heading direction
-    // At high speeds, it's harder to change direction (centrifugal force feel)
     this.speed = Math.sqrt(this.vx * this.vx + this.vz * this.vz);
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      
-      // Carving strength: higher speed = lower redirection (simulating edge grip)
       const steerStrength = Math.max(1.0, 5.0 - (this.speed * 0.1)); 
       
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
     }
 
-    // Forward push (ArrowUp) — propel in heading direction
+    // Forward push (ArrowUp)
     if (this._keys.forward) {
-      const pushForce = 5.0;
+      const pushForce = 15.0; // Stronger push for flats
       this.vx += Math.sin(this.heading) * pushForce * dt;
       this.vz += Math.cos(this.heading) * pushForce * dt;
     }
@@ -179,12 +199,14 @@ export class PlayerSkier {
       this.cameraPitch *= 0.92;
     }
 
-    // Friction
+    // Friction & Tucking
     let friction = baseFriction;
     if (this._keys.brake) {
-      friction = 0.92;
+      friction = 0.88; // Harder braking
+    } else if (this._keys.lookUp) {
+      friction = 0.995; // 'W' tucks: less aerodynamic drag
     } else if (this._keys.forward && this.speed > 1.0) {
-      friction = 0.995; // reduce drag when pushing at speed
+      friction = 0.99; // reduce drag when actively pushing
     }
 
     this.vx *= friction;
@@ -202,71 +224,96 @@ export class PlayerSkier {
       return false;
     }
 
-    // Snap to terrain
+    // Smooth terrain height
     const newH = this.terrain.getInterpolatedHeight(this.wx, this.wz);
-    this.mesh.position.set(this.wx, newH + 0.15, this.wz);
-
-    // --- Mesh Rotation & Leaning ---
-    // Smoothly face heading direction
-    const targetRot = this.heading;
-    let diff = targetRot - this.mesh.rotation.y;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    this.mesh.rotation.y += diff * 8.0 * dt;
-
-    // Lean into the turn based on angular velocity
-    // And tilt forward/back based on camera pitch (visual flair)
-    const targetLean = -this.angularVelocity * 0.15;
-    if (this._currentLean === undefined) this._currentLean = 0;
-    this._currentLean += (targetLean - this._currentLean) * 5.0 * dt;
-    this.mesh.rotation.z = this._currentLean;
-    this.mesh.rotation.x = this.cameraPitch * 0.5; // tilt with look angle
-
-    // Trail
-    this._trailPoints.push(this.wx, newH + 0.15, this.wz);
-    const maxTrailVerts = 4000;
-    if (this._trailPoints.length > maxTrailVerts * 3) {
-      this._trailPoints = this._trailPoints.slice(this._trailPoints.length - maxTrailVerts * 3);
-    }
-    const posAttr = this._trail.geometry.attributes.position;
-    const count = Math.min(this._trailPoints.length, maxTrailVerts * 3);
-    const offset = this._trailPoints.length - count;
-    
-    // Optim: Use bulk copy instead of for-loop
-    posAttr.array.set(this._trailPoints.slice(offset, offset + count));
-    
-    posAttr.needsUpdate = true;
-    this._trail.geometry.setDrawRange(0, count / 3);
+    this._smoothY += (newH - this._smoothY) * Math.min(1, 20 * dt);
 
     return true;
   }
 
-  /** Get the chase camera target position and look-at */
-  getCameraTarget() {
-    const h = this.terrain.getInterpolatedHeight(this.wx, this.wz);
-    const camDist = 12;
-    const camHeight = 6 + this.cameraPitch * 5; // W/S shifts camera base height
+  /** Interpolate visual position between prev and current physics state for sub-frame accuracy */
+  interpolateVisuals(alpha) {
+    if (!this.active || !this.mesh) return;
 
-    // Ideal camera position behind the skier based on heading
-    const camX = this.wx - Math.sin(this.heading) * camDist;
-    const camZ = this.wz - Math.cos(this.heading) * camDist;
+    // Position Lerp
+    const x = this._prevWx + (this.wx - this._prevWx) * alpha;
+    const z = this._prevWz + (this.wz - this._prevWz) * alpha;
+    const y = this._prevSmoothY + (this._smoothY - this._prevSmoothY) * alpha;
+    this.mesh.position.set(x, y + 0.15, z);
+
+    // Mesh Rotation
+    const targetRot = this.heading;
+    let diff = targetRot - this.mesh.rotation.y;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    // Rotation is technically tied to alpha proxy since animate runs at full framerate
+    this.mesh.rotation.y += diff * 0.2; 
+
+    // Lean into the turn
+    const targetLean = -(this.angularVelocity || 0) * 0.15;
+    if (this._currentLean === undefined) this._currentLean = 0;
+    this._currentLean += (targetLean - this._currentLean) * 0.2;
+    this.mesh.rotation.z = this._currentLean;
+    this.mesh.rotation.x = (this.cameraPitch || 0) * 0.5;
+
+    // Trail
+    const tp = this._trailPoints;
+    const lastIdx = tp.length - 3;
+    let addPoint = true;
+    if (lastIdx >= 0) {
+      const dx = x - tp[lastIdx];
+      const dz = z - tp[lastIdx + 2];
+      if (dx * dx + dz * dz < 0.09) addPoint = false; // < 0.3 units
+    }
+    if (addPoint) {
+      tp.push(x, y + 0.15, z);
+      const maxTrailVerts = 4000;
+      if (tp.length > maxTrailVerts * 3) {
+        this._trailPoints = tp.slice(tp.length - maxTrailVerts * 3);
+      }
+      const posAttr = this._trail.geometry.attributes.position;
+      const count = Math.min(this._trailPoints.length, maxTrailVerts * 3);
+      const offset = this._trailPoints.length - count;
+      posAttr.array.set(this._trailPoints.slice(offset, offset + count));
+      posAttr.needsUpdate = true;
+      this._trail.geometry.setDrawRange(0, count / 3);
+    }
+  }
+
+  /** Get the chase camera target position and look-at (uses pre-allocated vectors) */
+  getCameraTarget(alpha) {
+    // Interpolate everything strictly to exactly match visual drawing
+    const x = this._prevWx + (this.wx - this._prevWx) * alpha;
+    const z = this._prevWz + (this.wz - this._prevWz) * alpha;
+    const h = this._prevSmoothY + (this._smoothY - this._prevSmoothY) * alpha;
+    
+    const camDist = 12;
+    const camHeight = 6 + this.cameraPitch * 5; 
+
+    // Use a heavily smoothed camera heading so it doesn't whip around when the skier carves
+    if (this.cameraHeading === undefined) this.cameraHeading = this.heading;
+    
+    // Smoothly track the skier's heading over time
+    let diff = this.heading - this.cameraHeading;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    this.cameraHeading += diff * 0.05; // Extremely slow, smooth tracking (almost locked to mountain gravity path)
+
+    const camX = x - Math.sin(this.cameraHeading) * camDist;
+    const camZ = z - Math.cos(this.cameraHeading) * camDist;
     let camY = h + camHeight;
 
-    // --- Camera Terrain Collision ---
-    // Sample height at camera's XZ to ensure it doesn't go underground on steep slopes
     const terrainHAtCam = this.terrain.getInterpolatedHeight(camX, camZ);
     const minHeightAboveGround = 2.5;
     if (camY < terrainHAtCam + minHeightAboveGround) {
       camY = terrainHAtCam + minHeightAboveGround;
     }
 
-    // Look-at point shifts vertically with pitch
     const lookY = h + 1.2 + this.cameraPitch * 8;
 
-    return {
-      position: new THREE.Vector3(camX, camY, camZ),
-      lookAt: new THREE.Vector3(this.wx, lookY, this.wz),
-    };
+    this._camPosVec.set(camX, camY, camZ);
+    this._lookAtVec.set(x, lookY, z);
+    return { position: this._camPosVec, lookAt: this._lookAtVec };
   }
 
   // ---- Input handlers ----

@@ -111,6 +111,7 @@ export class SceneManager {
   enterSkierMode() {
     this._skierMode = true;
     this._currentLookAt = null; // Reset focus smoothing for new session
+    this._forceSnapCamera = true; // Instantly snap behind the skier on the first frame
     
     // Save current state for restoration
     this._savedCamPos = this.camera.position.clone();
@@ -175,18 +176,25 @@ export class SceneManager {
   updateSkierCamera(targetPos, lookAtPos, dt) {
     if (!this._skierMode) return;
 
-    // Frame-rate independent exponential damping
-    // Using a factor for position and a slightly faster one for focus
-    const dampPos = 1 - Math.pow(0.001, dt); // Arrive at 99.9% in 1s
-    const dampLook = 1 - Math.pow(0.0001, dt);
+    if (this._forceSnapCamera) {
+      this.camera.position.copy(targetPos);
+      this._currentLookAt = lookAtPos.clone();
+      this.camera.lookAt(this._currentLookAt);
+      this._forceSnapCamera = false;
+    } else {
+      // Frame-rate independent exponential damping
+      // Softer constants for cinematic glide instead of snapping
+      const dampPos = 1 - Math.pow(0.02, dt);   // Smooth glide (~98% per second)
+      const dampLook = 1 - Math.pow(0.005, dt);  // Gentle focus tracking
 
-    this.camera.position.lerp(targetPos, dampPos);
+      this.camera.position.lerp(targetPos, dampPos);
 
-    // Smooth the look-at target to reduce micro-jitter from terrain snapping
-    if (!this._currentLookAt) this._currentLookAt = lookAtPos.clone();
-    this._currentLookAt.lerp(lookAtPos, dampLook);
-    
-    this.camera.lookAt(this._currentLookAt);
+      // Smooth the look-at target to reduce micro-jitter from terrain snapping
+      if (!this._currentLookAt) this._currentLookAt = lookAtPos.clone();
+      this._currentLookAt.lerp(lookAtPos, dampLook);
+      
+      this.camera.lookAt(this._currentLookAt);
+    }
 
     // Dynamic Shadow: center shadow map on player
     if (this.sun) {
