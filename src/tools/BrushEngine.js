@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { TOOLS } from './tools.js';
 
 export class BrushEngine {
   constructor(terrain, camera, canvas) {
@@ -99,21 +100,23 @@ export class BrushEngine {
 
     // Apply tool
     if (this.painting && this.tool && this.intersectionPoint) {
-      const { gx, gz } = this.terrain.worldToGrid(
-        this.intersectionPoint.x,
-        this.intersectionPoint.z
-      );
-      const mapToApply = this.tool.isSnowBrush ? this.terrain.snowmap : this.terrain.heightmap;
-      this.tool.apply(
-        mapToApply,
-        this.terrain.resolution,
-        gx, gz,
-        this.radius,
-        this.strength,
-        this._isStart
-      );
+      if (this.tool.isBrush) {
+        const { gx, gz } = this.terrain.worldToGrid(
+          this.intersectionPoint.x,
+          this.intersectionPoint.z
+        );
+        
+        const toolId = Object.keys(TOOLS).find(k => TOOLS[k] === this.tool) || this.tool.name.toLowerCase();
+        
+        this.terrain.sculpt(
+          toolId,
+          gx, gz,
+          this.radius,
+          this.strength,
+          this._isStart
+        );
+      }
       this._isStart = false;
-      this.terrain.updateMesh(seaLevel);
       return true;
     }
     return false;

@@ -1,17 +1,9 @@
 import * as THREE from "three/webgpu";
 
-const DEEP_WATER = new THREE.Color(0x0a2a4a);
-const SHALLOW = new THREE.Color(0x1a6e8e);
-const SAND = new THREE.Color(0xc2b280);
-const GRASS_LOW = new THREE.Color(0x4a7c3f);
-const GRASS_HIGH = new THREE.Color(0x2d5a27);
-const ROCK = new THREE.Color(0x6b6b6b);
-const SNOW = new THREE.Color(0xf0f0f0);
-
 export class Terrain {
   /**
-   * @param {number} size – world units for the terrain square
-   * @param {number} resolution – vertices per side (e.g. 256)
+   * @param {number} size
+   * @param {number} resolution
    */
   constructor(size = 200, resolution = 256) {
     this.size = size;
@@ -19,7 +11,6 @@ export class Terrain {
     this.heightmap = new Float32Array(resolution * resolution);
     this.snowmap = new Float32Array(resolution * resolution);
 
-    // Build geometry
     this.geometry = new THREE.PlaneGeometry(
       size,
       size,
@@ -28,12 +19,10 @@ export class Terrain {
     );
     this.geometry.rotateX(-Math.PI / 2); // lay flat
 
-    // Pre-allocate vertex color buffer
     const count = this.geometry.attributes.position.count;
     const colors = new Float32Array(count * 3);
     this.geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-    // Material with vertex colors
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       flatShading: false,
@@ -45,9 +34,49 @@ export class Terrain {
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
 
-    // Generate some initial gentle terrain
-    this._generateInitialTerrain();
-    this.updateMesh();
+    // Initialize Worker
+    this.worker = new Worker(new URL('./TerrainWorker.js', import.meta.url), { type: 'module' });
+    this.worker.onmessage = this._onWorkerMessage.bind(this);
+
+    // Track tool state from worker
+    this._toolState = {};
+
+    this.worker.postMessage({
+      type: 'init',
+      size: this.size,
+      resolution: this.resolution
+    });
+  }
+
+  /* ---- Worker Handling ---- */
+
+  _onWorkerMessage(e) {
+    const msg = e.data;
+    if (msg.heightmap) this.heightmap.set(msg.heightmap);
+    if (msg.snowmap) this.snowmap.set(msg.snowmap);
+    if (msg.toolState) this._toolState = msg.toolState;
+
+    if (msg.colors || msg.heightmap) {
+      this._applyBuffersToMesh(msg.heightmap, msg.colors);
+    }
+  }
+
+  _applyBuffersToMesh(heights, colors) {
+    const pos = this.geometry.attributes.position;
+    const col = this.geometry.attributes.color;
+
+    if (heights) {
+      for (let i = 0; i < pos.count; i++) {
+          pos.setY(i, heights[i]);
+      }
+      pos.needsUpdate = true;
+      this.geometry.computeVertexNormals();
+    }
+    
+    if (colors) {
+      col.array.set(colors);
+      col.needsUpdate = true;
+    }
   }
 
   /* ---- public API ---- */
@@ -71,7 +100,6 @@ export class Terrain {
     const fz = ((wz + half) / this.size) * (this.resolution - 1);
     
     if (fx < 0 || fx >= this.resolution - 1 || fz < 0 || fz >= this.resolution - 1) {
-      // Out of bounds, return nearest grid height
       const { gx, gz } = this.worldToGrid(wx, wz);
       return this.getHeight(gx, gz);
     }
@@ -103,7 +131,6 @@ export class Terrain {
     return { gx, gz };
   }
 
-  /** Snapshot the heightmap and snowmap for undo */
   snapshot() {
     return {
       heightmap: new Float32Array(this.heightmap),
@@ -111,141 +138,43 @@ export class Terrain {
     };
   }
 
-  /** Restore from a snapshot */
   restore(snap) {
     if (snap.heightmap) this.heightmap.set(snap.heightmap);
     if (snap.snowmap) this.snowmap.set(snap.snowmap);
-    this.updateMesh();
-  }
-
-  /** Reset terrain to flat (all zeros) */
-  reset(seaLevel = 0) {
-    this.heightmap.fill(0);
-    this.snowmap.fill(0);
-    this.updateMesh(seaLevel);
-  }
-
-  /** Push heightmap data into geometry and recolor. */
-  updateMesh(seaLevel = 0) {
-    const pos = this.geometry.attributes.position;
-    const col = this.geometry.attributes.color;
-    const res = this.resolution;
-    const hmap = this.heightmap;
-    const smap = this.snowmap;
-    const spacing = this.size / (res - 1);
-    const invSpacing2 = 1 / (2 * spacing);
-
-    for (let i = 0; i < pos.count; i++) {
-        const h = hmap[i];
-        pos.setY(i, h);
-
-        const gx = i % res;
-        const gz = (i / res) | 0;
-
-        const hL = gx > 0 ? hmap[gz * res + (gx - 1)] : hmap[gz * res + gx];
-        const hR = gx < res - 1 ? hmap[gz * res + (gx + 1)] : hmap[gz * res + gx];
-        const hU = gz > 0 ? hmap[(gz - 1) * res + gx] : hmap[gz * res + gx];
-        const hD = gz < res - 1 ? hmap[(gz + 1) * res + gx] : hmap[gz * res + gx];
-
-        const gradX = (hR - hL) * invSpacing2;
-        const gradZ = (hD - hU) * invSpacing2;
-        const steepness = Math.sqrt(gradX * gradX + gradZ * gradZ);
-
-        const c = this._colorForHeight(h, seaLevel, steepness, smap[i]);
-        col.setXYZ(i, c.r, c.g, c.b);
-    }
-
-    pos.needsUpdate = true;
-    col.needsUpdate = true;
-    this.geometry.computeVertexNormals();
-  }
-
-  /* ---- private ---- */
-
-  _generateInitialTerrain() {
-    const res = this.resolution;
-
-    // Random offsets to make each map unique
-    const pX1 = Math.random() * Math.PI * 2;
-    const pZ1 = Math.random() * Math.PI * 2;
-    const pX2 = Math.random() * Math.PI * 2;
-    const pZ2 = Math.random() * Math.PI * 2;
-    const pX3 = Math.random() * Math.PI * 2;
-    const pZ3 = Math.random() * Math.PI * 2;
-    const cxOffset = (Math.random() - 0.5) * 0.3;
-    const czOffset = (Math.random() - 0.5) * 0.3;
-
-    for (let z = 0; z < res; z++) {
-      for (let x = 0; x < res; x++) {
-        const nx = x / res;
-        const nz = z / res;
-        // Huge central mountain peak, randomly offset
-        const cx = nx - 0.5 + cxOffset;
-        const cz = nz - 0.5 + czOffset;
-        const distFromCenterSq = cx*cx + cz*cz;
-        const mountainShape = Math.max(0, 1.0 - Math.sqrt(distFromCenterSq) * 1.8);
-        let h = mountainShape * 45.0;
-
-        // More aggressive, high-frequency ridges with random phase shifts
-        h += Math.sin(nx * 5.0 * Math.PI + pX1) * Math.cos(nz * 4.0 * Math.PI + pZ1) * 8.0;
-        h += Math.sin(nx * 12.5 * Math.PI + pX2) * Math.cos(nz * 10.2 * Math.PI + pZ2) * 4.5;
-        h += Math.sin(nx * 26.0 * Math.PI + pX3) * Math.cos(nz * 22.0 * Math.PI + pZ3) * 2.0;
-
-        // Sharper edge falloff so it meets water
-        const edgeX = 1 - Math.pow(2 * nx - 1, 6);
-        const edgeZ = 1 - Math.pow(2 * nz - 1, 6);
-        h *= Math.min(edgeX, edgeZ);
-        
-        this.heightmap[z * res + x] = h;
-      }
-    }
-  }
-
-  // Pre-allocated color temporaries — avoids GC pressure in hot loops
-  _tmpBase = new THREE.Color();
-  _tmpResult = new THREE.Color();
-
-  _colorForHeight(h, seaLevel, steepness = 0, snowAmount = 0) {
-    const base = this._tmpBase;
-    const result = this._tmpResult;
     
-    if (h < seaLevel - 4) {
-      base.copy(DEEP_WATER);
-    } else if (h < seaLevel - 1) {
-      base.lerpColors(DEEP_WATER, SHALLOW, (h - (seaLevel - 4)) / 3);
-    } else if (h < seaLevel + 0.5) {
-      base.lerpColors(SHALLOW, SAND, (h - (seaLevel - 1)) / 1.5);
-    } else if (h < seaLevel + 6) {
-      base.lerpColors(SAND, GRASS_LOW, (h - (seaLevel + 0.5)) / 5.5);
-    } else if (h < seaLevel + 15) {
-      base.lerpColors(GRASS_LOW, GRASS_HIGH, (h - (seaLevel + 6)) / 9);
-    } else if (h < seaLevel + 28) {
-      base.lerpColors(GRASS_HIGH, ROCK, (h - (seaLevel + 15)) / 13);
-    } else if (h < seaLevel + 40) {
-      base.lerpColors(ROCK, SNOW, (h - (seaLevel + 28)) / 12);
-    } else {
-      base.copy(SNOW);
-    }
+    this.worker.postMessage({
+      type: 'init',
+      size: this.size,
+      resolution: this.resolution,
+      heightmap: this.heightmap,
+      snowmap: this.snowmap
+    });
+  }
 
-    // Overlay exposed rock if heavily angled 
-    if (h > seaLevel + 0.5 && steepness > 0.6) {
-      const steepFactor = Math.min((steepness - 0.6) / 0.5, 1.0);
-      result.lerpColors(base, ROCK, steepFactor);
-      base.copy(result);
-    }
-
-    // Overlay manually painted snow
-    if (snowAmount > 0.05) {
-      result.lerpColors(base, SNOW, Math.min(snowAmount, 1.0));
-      return result;
-    }
-
-    return base;
+  reset(seaLevel = 0) {
+    this.worker.postMessage({ type: 'reset' });
   }
 
   shiftGlobalHeight(delta) {
-    for (let i = 0; i < this.heightmap.length; i++) {
-      this.heightmap[i] += delta;
-    }
+    this.worker.postMessage({ type: 'shiftGlobal', delta });
+  }
+
+  /** Paint / Sculpt asynchronously via Worker */
+  sculpt(toolName, cx, cz, radius, strength, isStart) {
+    this.worker.postMessage({
+      type: 'sculpt',
+      toolName,
+      cx,
+      cz,
+      radius,
+      strength,
+      isStart,
+      toolState: this._toolState
+    });
+  }
+
+  /** Update coloring based on sea level */
+  updateMesh(seaLevel = 0) {
+    this.worker.postMessage({ type: 'updateSeaLevel', seaLevel });
   }
 }
