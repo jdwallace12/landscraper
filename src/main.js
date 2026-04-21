@@ -112,6 +112,7 @@ const ui = new UI({
     clouds.toggle(checked);
   },
   onToggleSkierMode() { toggleSkierMode(); },
+  onSkierFogChange(v) { scene.setSkierFog(v); },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },
@@ -450,7 +451,7 @@ function animate() {
     } else {
       // Interpolate visual position for the remaining sub-frame fraction
       const alpha = physicsAccumulator / PHYSICS_DT;
-      playerSkier.interpolateVisuals(alpha);
+      playerSkier.interpolateVisuals(alpha, dt);
 
       const cam = playerSkier.getCameraTarget(alpha);
       scene.updateSkierCamera(cam.position, cam.lookAt, dt);

@@ -232,7 +232,7 @@ export class PlayerSkier {
   }
 
   /** Interpolate visual position between prev and current physics state for sub-frame accuracy */
-  interpolateVisuals(alpha) {
+  interpolateVisuals(alpha, dt) {
     if (!this.active || !this.mesh) return;
 
     // Position Lerp
@@ -241,18 +241,20 @@ export class PlayerSkier {
     const y = this._prevSmoothY + (this._smoothY - this._prevSmoothY) * alpha;
     this.mesh.position.set(x, y + 0.15, z);
 
+    // Frame-rate independent exponential tracking (~99.9% convergence per sec)
+    const smoothFactor = 1 - Math.pow(0.0001, dt);
+
     // Mesh Rotation
     const targetRot = this.heading;
     let diff = targetRot - this.mesh.rotation.y;
     while (diff < -Math.PI) diff += Math.PI * 2;
     while (diff > Math.PI) diff -= Math.PI * 2;
-    // Rotation is technically tied to alpha proxy since animate runs at full framerate
-    this.mesh.rotation.y += diff * 0.2; 
+    this.mesh.rotation.y += diff * smoothFactor; 
 
     // Lean into the turn
     const targetLean = -(this.angularVelocity || 0) * 0.15;
     if (this._currentLean === undefined) this._currentLean = 0;
-    this._currentLean += (targetLean - this._currentLean) * 0.2;
+    this._currentLean += (targetLean - this._currentLean) * smoothFactor;
     this.mesh.rotation.z = this._currentLean;
     this.mesh.rotation.x = (this.cameraPitch || 0) * 0.5;
 
