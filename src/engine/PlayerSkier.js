@@ -13,13 +13,16 @@ export class PlayerSkier {
     // World position & velocity
     this.wx = 0;
     this.wz = 0;
+    this.y = 0;
     this.vx = 0;
     this.vz = 0;
+    this.vy = 0;
     this.speed = 0;
     this.heading = 0; // radians, direction the skier faces
 
     // State
     this.active = false;
+    this.grounded = true;
 
     // Input state
     this._keys = { left: false, right: false, lookUp: false, lookDown: false, forward: false, brake: false };
@@ -28,12 +31,12 @@ export class PlayerSkier {
     this.cameraPitch = 0; // radians, positive = look up
 
     // Smooth height tracking (prevents Y-axis snapping/jitter)
-    this._smoothY = 0;
+    this._prevY = 0;
 
     // Previous state for visual interpolation
     this._prevWx = 0;
     this._prevWz = 0;
-    this._prevSmoothY = 0;
+    this._prevY = 0;
 
     // Pre-allocated vectors (avoid GC micro-pauses from per-frame allocations)
     this._camPosVec = new THREE.Vector3();
@@ -68,10 +71,12 @@ export class PlayerSkier {
 
     // Initialize smooth height at exact terrain height
     const h = this.terrain.getInterpolatedHeight(wx, wz);
-    this._smoothY = h;
+    this.y = h;
+    this.vy = 0;
+    this.grounded = true;
     this._prevWx = wx;
     this._prevWz = wz;
-    this._prevSmoothY = h;
+    this._prevY = h;
 
     // Build mesh
     this.mesh = this._buildSkier();
@@ -134,9 +139,9 @@ export class PlayerSkier {
     // Store previous state for interpolation
     this._prevWx = this.wx;
     this._prevWz = this.wz;
-    this._prevSmoothY = this._smoothY;
+    this._prevY = this.y;
 
-    const gravity = 10.0; // Lowered from 18.0 to prevent aggressive acceleration spikes
+    const gravity = 25.0; // Stronger gravity for crisp jumping / aggressive acceleration spikes
     const baseFriction = 0.992; // Lower friction (higher retention) for a longer, silky glide
     const res = this.terrain.resolution;
     const size = this.terrain.size;
@@ -217,16 +222,33 @@ export class PlayerSkier {
     this.wx += this.vx * dt;
     this.wz += this.vz * dt;
 
-    // Re-check bounds after move
-    const { gx: ngx, gz: ngz } = this.terrain.worldToGrid(this.wx, this.wz);
-    if (ngx < 0 || ngx >= res || ngz < 0 || ngz >= res) {
-      this.active = false;
-      return false;
-    }
+    // Terrain height at new position
+    const terrainH = this.terrain.getInterpolatedHeight(this.wx, this.wz);
 
-    // Smooth terrain height
-    const newH = this.terrain.getInterpolatedHeight(this.wx, this.wz);
-    this._smoothY += (newH - this._smoothY) * Math.min(1, 20 * dt);
+    if (this.grounded) {
+      const dh = terrainH - this.y;
+      const slopeVy = dh / dt;
+
+      // If the ground falls away faster than gravity or we hit a bump fast
+      if (slopeVy < -15 && this.speed > 10) {
+        this.grounded = false;
+        this.vy = slopeVy; 
+      } else {
+        this.y = terrainH;
+        this.vy = slopeVy;
+      }
+    } else {
+      // Air physics
+      this.vy -= gravity * dt;
+      this.y += this.vy * dt;
+
+      // Landing check
+      if (this.y <= terrainH) {
+        this.y = terrainH;
+        this.vy = 0;
+        this.grounded = true;
+      }
+    }
 
     return true;
   }
@@ -238,7 +260,7 @@ export class PlayerSkier {
     // Position Lerp
     const x = this._prevWx + (this.wx - this._prevWx) * alpha;
     const z = this._prevWz + (this.wz - this._prevWz) * alpha;
-    const y = this._prevSmoothY + (this._smoothY - this._prevSmoothY) * alpha;
+    const y = this._prevY + (this.y - this._prevY) * alpha;
     this.mesh.position.set(x, y + 0.15, z);
 
     // Frame-rate independent exponential tracking (~99.9% convergence per sec)
@@ -256,7 +278,12 @@ export class PlayerSkier {
     if (this._currentLean === undefined) this._currentLean = 0;
     this._currentLean += (targetLean - this._currentLean) * smoothFactor;
     this.mesh.rotation.z = this._currentLean;
-    this.mesh.rotation.x = (this.cameraPitch || 0) * 0.5;
+
+    // Lean back/forward based on vy
+    const targetPitch = (this.cameraPitch || 0) * 0.5 - (this.vy * 0.02);
+    if (this._currentPitch === undefined) this._currentPitch = 0;
+    this._currentPitch += (targetPitch - this._currentPitch) * smoothFactor;
+    this.mesh.rotation.x = this._currentPitch;
 
     // Trail
     const tp = this._trailPoints;
@@ -287,7 +314,7 @@ export class PlayerSkier {
     // Interpolate everything strictly to exactly match visual drawing
     const x = this._prevWx + (this.wx - this._prevWx) * alpha;
     const z = this._prevWz + (this.wz - this._prevWz) * alpha;
-    const h = this._prevSmoothY + (this._smoothY - this._prevSmoothY) * alpha;
+    const h = this._prevY + (this.y - this._prevY) * alpha;
     
     const camDist = 12;
     const camHeight = 6 + this.cameraPitch * 5; 

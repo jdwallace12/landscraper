@@ -246,9 +246,9 @@ export class UI {
     if (fogSlider) {
       fogSlider.addEventListener('input', (e) => {
         // High GPU (100) = Thin Fog (0.001)
-        // Low GPU (0) = Extremely Thick Fog (0.04)
+        // Low GPU (0) = Thick Fog (0.1)
         const t = parseFloat(e.target.value) / 100.0;
-        const maxFog = 0.04;
+        const maxFog = 0.1; // Reduced from 0.2 to a more playable "thick" level
         const minFog = 0.001;
         const density = minFog + (1.0 - t) * (maxFog - minFog);
         if (this.callbacks.onSkierFogChange) this.callbacks.onSkierFogChange(density);

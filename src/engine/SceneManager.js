@@ -215,8 +215,8 @@ export class SceneManager {
       this.scene.fog.density = density;
       // Actual Performance Fix: Fog is just a pixel color effect. 
       // To get real GPU performance, we must cull geometry that is hidden by the fog!
-      // exp(-(distance*density)^2) = 0.018 when distance*density = 2.0
-      const cullDistance = Math.min(2.0 / density, 2500); 
+      // Must be at least 30 to not clip the chase camera!
+      const cullDistance = Math.max(30, Math.min(2.0 / density, 2500)); 
       this.camera.far = cullDistance;
       this.camera.updateProjectionMatrix();
     }

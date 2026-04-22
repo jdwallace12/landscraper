@@ -89,6 +89,9 @@ export class Skiers {
       speed: 0,
       timeAlive: 0,
       state: 'skiing',
+      grounded: true,
+      y: h,
+      vy: 0,
       targetStation: null,
       targetLine: null,
       chair: null,
@@ -517,16 +520,37 @@ export class Skiers {
         s.mesh.visible = false;
         continue;
       }
-      const newH = this.terrain.getInterpolatedHeight(s.wx, s.wz);
+      const terrainH = this.terrain.getInterpolatedHeight(s.wx, s.wz);
+
+      // Vertical physics
+      if (s.grounded) {
+        const dh = terrainH - s.y;
+        const slopeVy = dh / dt;
+        if (slopeVy < -15 && s.speed > 8) {
+          s.grounded = false;
+          s.vy = slopeVy;
+        } else {
+          s.y = terrainH;
+          s.vy = slopeVy;
+        }
+      } else {
+        s.vy -= 25.0 * dt; // Gravity
+        s.y += s.vy * dt;
+        if (s.y <= terrainH) {
+          s.y = terrainH;
+          s.vy = 0;
+          s.grounded = true;
+        }
+      }
 
       // Update mesh position
-      s.mesh.position.set(s.wx, newH + 0.15, s.wz);
+      s.mesh.position.set(s.wx, s.y + 0.15, s.wz);
 
       // Stop if below the snow line (rock starts at seaLevel + 28)
       // UNLESS the surface has been covered with the Snow Maker tool
       const snowIdx = ngz * res + ngx;
       const hasSnowPaint = this.terrain.snowmap[snowIdx] > 0.3;
-      if (newH < seaLevel + 28 && !hasSnowPaint) {
+      if (terrainH < seaLevel + 28 && !hasSnowPaint) {
         this._handleStop(s, chairlifts);
         continue;
       }
@@ -534,15 +558,19 @@ export class Skiers {
       // Smoothly face direction of overall movement (velocity + carve)
       if (s.speed > 0.01) {
         const targetRot = Math.atan2(s.vx + carveX, s.vz + carveZ);
-        // Lerp rotation to remove jumpiness: if difference is huge (like passing Math.PI), just snap, else lerp
+        // Lerp rotation to remove jumpiness
         let diff = targetRot - s.mesh.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        s.mesh.rotation.y += diff * 6.0 * dt; // Smoothly arrive at target
+        s.mesh.rotation.y += diff * 6.0 * dt; 
+
+        // Add a bit of pitch lean if in air
+        const targetPitch = s.grounded ? 0 : -s.vy * 0.015;
+        s.mesh.rotation.x += (targetPitch - s.mesh.rotation.x) * 4.0 * dt;
       }
 
       // Trail points appending
-      s.trailPoints.push(s.wx, newH + 0.15, s.wz);
+      s.trailPoints.push(s.wx, s.y + 0.15, s.wz);
     }
 
     // Sync InstancedMesh
