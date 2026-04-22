@@ -103,7 +103,7 @@ export class SceneManager {
   }
 
   render() {
-    if (!this._skierMode) this.controls.update();
+    if (!this._skierMode && !this._tourMode) this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
 

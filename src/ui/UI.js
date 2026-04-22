@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange, onToggleTour }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange, onToggleTour };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -184,6 +184,26 @@ export class UI {
     cloudsLabel.appendChild(cloudsCheckbox);
     cloudsRow.appendChild(cloudsLabel);
     sidebar.appendChild(cloudsRow);
+
+    // Tour Toggle
+    const tourRow = document.createElement('div');
+    tourRow.className = 'slider-group';
+    const tourLabel = document.createElement('label');
+    tourLabel.style.display = 'flex';
+    tourLabel.style.justifyContent = 'space-between';
+    tourLabel.style.width = '100%';
+    tourLabel.style.cursor = 'pointer';
+    tourLabel.innerHTML = '<span>🚁 Terrain Tour</span>';
+    const tourCheckbox = document.createElement('input');
+    tourCheckbox.type = 'checkbox';
+    tourCheckbox.addEventListener('change', (e) => {
+      if (this.callbacks.onToggleTour) {
+        this.callbacks.onToggleTour(e.target.checked);
+      }
+    });
+    tourLabel.appendChild(tourCheckbox);
+    tourRow.appendChild(tourLabel);
+    sidebar.appendChild(tourRow);
 
     // Skier HUD (hidden by default, shown during ski mode)
     this._skierHud = document.createElement('div');

@@ -35,6 +35,8 @@ let chairliftStartPoint = null;
 let isSnowing = false;
 let isClouds = false;
 let isSkierMode = false;
+let isTourMode = false;
+let tourTime = 0;
 let isSkierPlacementMode = false; // waiting for user to click spawn point
 let currentFileHandle = null;
 
@@ -110,6 +112,19 @@ const ui = new UI({
   onToggleClouds(checked) {
     isClouds = checked;
     clouds.toggle(checked);
+  },
+  onToggleTour(checked) {
+    isTourMode = checked;
+    scene._tourMode = checked;
+    if (isTourMode) {
+      tourTime = 0;
+      scene.controls.enabled = false;
+    } else {
+      scene.controls.enabled = true;
+      // Sync orbit controls back to where the tour dropped us off
+      scene.controls.target.copy(scene.controls.target); // Force re-eval
+      scene.controls.update();
+    }
   },
   onToggleSkierMode() { toggleSkierMode(); },
   onSkierFogChange(v) { scene.setSkierFog(v); },
@@ -354,7 +369,7 @@ window.addEventListener('keydown', (e) => {
 
 // ---- Interaction wiring (Undo, Placements, Orbit controls) ----
 function handleInteractStart(e) {
-  if (isSkierMode) return; // Suppress editor interactions during ski mode
+  if (isSkierMode) return; // Suppress editor interactions during ski mode, but allow during Tour Mode!
 
   // Skier placement mode: click to spawn
   if (isSkierPlacementMode) {
@@ -465,6 +480,35 @@ function animate() {
     water.update(dt);
   } else {
     physicsAccumulator = 0;
+
+    if (isTourMode) {
+      tourTime += dt;
+      const cx = 0; // Use 0,0 as center since PlaneGeometry is centered
+      const cz = 0;
+      
+      // Procedural orbit path
+      const radius = 160 + Math.sin(tourTime * 0.08) * 60; // Dynamic zoom
+      const angle = tourTime * 0.12; // Slow rotation
+      
+      const camX = cx + Math.cos(angle) * radius;
+      const camZ = cz + Math.sin(angle) * radius;
+      
+      let h = terrain.getInterpolatedHeight(camX, camZ);
+      if (isNaN(h)) h = seaLevel;
+      const camY = Math.max(h + 35, 90 + Math.sin(tourTime * 0.1) * 40);
+      
+      // Look towards the center area with a slight lead
+      const lookX = cx + Math.cos(angle + 0.4) * 30;
+      const lookZ = cz + Math.sin(angle + 0.4) * 30;
+      
+      // Luxurious drag (exponential smoothing) allows a drone-like take off
+      const smoothGlide = 1 - Math.pow(0.1, dt); 
+      
+      scene.camera.position.lerp(new THREE.Vector3(camX, camY, camZ), smoothGlide);
+      scene.controls.target.lerp(new THREE.Vector3(lookX, seaLevel + 5, lookZ), smoothGlide);
+      scene.camera.lookAt(scene.controls.target); 
+    }
+
     const modified = brush.update(seaLevel);
     if (modified) {
       trees.updatePositions(seaLevel);
