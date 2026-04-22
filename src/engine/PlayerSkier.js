@@ -163,8 +163,8 @@ export class PlayerSkier {
     this.vz -= gradZ * gravity * dt;
 
     // --- Weighted Steering (Carving) ---
-    const maxTurnAccel = 10.0; // Snappier steering response
-    const turnDamping = 0.90; // Stabilize quickly
+    const maxTurnAccel = 15.0; // Scaled up slightly to compensate for floating momentum
+    const turnDamping = 0.98; // Stabilize gracefully over time (drift instead of snapping!)
     
     if (this._keys.left) this.angularVelocity += maxTurnAccel * dt;
     if (this._keys.right) this.angularVelocity -= maxTurnAccel * dt;
@@ -177,7 +177,7 @@ export class PlayerSkier {
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      const steerStrength = Math.max(1.0, 5.0 - (this.speed * 0.1)); 
+      const steerStrength = Math.max(0.5, 2.5 - (this.speed * 0.05)); // Less aggressive snap, more drift!
       
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
