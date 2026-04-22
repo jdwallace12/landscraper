@@ -1,9 +1,12 @@
 import * as THREE from 'three/webgpu';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * Skier entity that follows the steepest downhill gradient on the terrain.
- * Builds a tiny low-poly stick figure with skis.
+ * Builds a tiny low-poly stick figure with skis, optimized with InstancedMesh.
  */
+
+const MAX_SKIERS = 2000;
 
 export class Skiers {
   constructor(terrain) {
@@ -18,6 +21,24 @@ export class Skiers {
     this._pantsMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.7 });
     this._skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
     this._skiMat = new THREE.MeshStandardMaterial({ color: 0xffa500, roughness: 0.3, metalness: 0.2 });
+
+    this.materials = [
+      this._bodyMat, // 0 torso
+      this._skinMat, // 1 head
+      this._pantsMat, // 2 leg
+      this._pantsMat, // 3 leg
+      this._skiMat,  // 4 ski
+      this._skiMat,  // 5 ski
+      this._skiMat,  // 6 pole
+      this._skiMat   // 7 pole
+    ];
+
+    this.mergedGeo = this._buildSkierGeo();
+    this.skierIM = new THREE.InstancedMesh(this.mergedGeo, this.materials, MAX_SKIERS);
+    this.skierIM.castShadow = true;
+    this.skierIM.frustumCulled = false;
+    this.skierIM.count = 0;
+    this.group.add(this.skierIM);
 
     // Spatial hash for efficient repulsion
     this._spatialHash = new Map();
@@ -41,11 +62,13 @@ export class Skiers {
 
   /** Drop a new skier at world position (wx, wz) */
   spawn(wx, wz) {
+    if (this.skiers.length >= MAX_SKIERS) return;
+
     const h = this.terrain.getInterpolatedHeight(wx, wz);
 
-    const mesh = this._buildSkier();
+    const mesh = new THREE.Object3D();
+    mesh.scale.setScalar(0.7);
     mesh.position.set(wx, h + 0.15, wz);
-    this.group.add(mesh);
 
     // Trail line (ski tracks)
     const trailMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.9 });
@@ -521,6 +544,20 @@ export class Skiers {
       // Trail points appending
       s.trailPoints.push(s.wx, newH + 0.15, s.wz);
     }
+
+    // Sync InstancedMesh
+    let imCount = 0;
+    for (const s of this.skiers) {
+      if (s.active && s.mesh.visible) {
+        s.mesh.updateMatrix();
+        this.skierIM.setMatrixAt(imCount, s.mesh.matrix);
+        imCount++;
+      }
+    }
+    this.skierIM.count = imCount;
+    if (imCount > 0) {
+      this.skierIM.instanceMatrix.needsUpdate = true;
+    }
   }
 
   /** Remove all skiers and trails */
@@ -553,13 +590,12 @@ export class Skiers {
 
   clear() {
     for (const s of this.skiers) {
-      this.group.remove(s.mesh);
       this.group.remove(s.trail);
-      s.mesh.traverse(c => { if (c.geometry) c.geometry.dispose(); });
       s.trail.geometry.dispose();
       s.trail.material.dispose();
     }
     this.skiers = [];
+    this.skierIM.count = 0;
     if (this.trackMap) this.trackMap.fill(0);
   }
 
@@ -571,66 +607,45 @@ export class Skiers {
     return this.skiers.filter(s => s.active).length;
   }
 
-  _buildSkier() {
-    const group = new THREE.Group();
+  _buildSkierGeo() {
+    const geos = [];
 
-    const bodyMat = this._bodyMat;
-    const pantsMat = this._pantsMat;
-    const skinMat = this._skinMat;
-    const skiMat = this._skiMat;
-
-    // Body (torso)
-    const torso = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.18, 0.08),
-      bodyMat
-    );
-    torso.position.y = 0.28;
-    torso.castShadow = true;
-    group.add(torso);
+    // Torso
+    const torso = new THREE.BoxGeometry(0.12, 0.18, 0.08);
+    torso.translate(0, 0.28, 0);
+    geos.push(torso);
 
     // Head
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 6, 6),
-      skinMat
-    );
-    head.position.y = 0.42;
-    head.castShadow = true;
-    group.add(head);
+    const head = new THREE.SphereGeometry(0.05, 6, 6);
+    head.translate(0, 0.42, 0);
+    geos.push(head);
 
     // Legs
     for (const side of [-1, 1]) {
-      const leg = new THREE.Mesh(
-        new THREE.BoxGeometry(0.04, 0.16, 0.05),
-        pantsMat
-      );
-      leg.position.set(side * 0.035, 0.12, 0);
-      leg.castShadow = true;
-      group.add(leg);
+      const leg = new THREE.BoxGeometry(0.04, 0.16, 0.05);
+      leg.translate(side * 0.035, 0.12, 0);
+      geos.push(leg);
     }
 
     // Skis
     for (const side of [-1, 1]) {
-      const ski = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08, 0.03, 0.6),
-        skiMat
-      );
-      ski.position.set(side * 0.08, 0.015, 0);
-      ski.castShadow = true;
-      group.add(ski);
+      const ski = new THREE.BoxGeometry(0.08, 0.03, 0.6);
+      ski.translate(side * 0.08, 0.015, 0);
+      geos.push(ski);
     }
 
-    // Poles (thin cylinders)
+    // Poles
     for (const side of [-1, 1]) {
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4),
-        skiMat
-      );
-      pole.position.set(side * 0.16, 0.2, 0);
-      pole.rotation.z = side * 0.2;
-      group.add(pole);
+      const pole = new THREE.CylinderGeometry(0.01, 0.01, 0.4, 4);
+      pole.rotateZ(side * 0.2);
+      pole.translate(side * 0.16, 0.2, 0);
+      geos.push(pole);
     }
 
-    group.scale.setScalar(0.7);
-    return group;
+    for (let i = 0; i < geos.length; i++) {
+      geos[i] = geos[i].toNonIndexed();
+    }
+
+    return BufferGeometryUtils.mergeGeometries(geos, true);
   }
 }
