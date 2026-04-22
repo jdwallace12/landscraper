@@ -136,8 +136,8 @@ export class PlayerSkier {
     this._prevWz = this.wz;
     this._prevSmoothY = this._smoothY;
 
-    const gravity = 18.0; // Increased for faster downhill acceleration
-    const baseFriction = 0.985; // Less drag, holds speed better
+    const gravity = 10.0; // Lowered from 18.0 to prevent aggressive acceleration spikes
+    const baseFriction = 0.992; // Lower friction (higher retention) for a longer, silky glide
     const res = this.terrain.resolution;
     const size = this.terrain.size;
     const cellSize = size / (res - 1);
@@ -202,11 +202,11 @@ export class PlayerSkier {
     // Friction & Tucking
     let friction = baseFriction;
     if (this._keys.brake) {
-      friction = 0.88; // Harder braking
+      friction = 0.92; // Harder braking
     } else if (this._keys.lookUp) {
-      friction = 0.995; // 'W' tucks: less aerodynamic drag
+      friction = 0.998; // 'W' tucks: less aerodynamic drag
     } else if (this._keys.forward && this.speed > 1.0) {
-      friction = 0.99; // reduce drag when actively pushing
+      friction = 0.996; // reduce drag when actively pushing
     }
 
     this.vx *= friction;
