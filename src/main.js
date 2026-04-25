@@ -455,7 +455,7 @@ function animate() {
     physicsAccumulator += Math.min(dt, 0.05); // Cap to prevent spiral of death on tab-away
     let alive = true;
     while (physicsAccumulator >= PHYSICS_DT) {
-      alive = playerSkier.update(PHYSICS_DT);
+      alive = playerSkier.update(PHYSICS_DT, chairlifts);
       physicsAccumulator -= PHYSICS_DT;
       if (!alive) break;
     }
@@ -474,7 +474,9 @@ function animate() {
       // Update speed HUD
       ui.updateSkierSpeed(playerSkier.speed);
     }
-    // Optim: Skip heavy world updates like AI skiers and chairlift physics during ski mode
+    // Simulations that run in Ski Mode
+    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
+    chairlifts.update(dt);
     snow.update(dt);
     clouds.update(dt);
     water.update(dt);
@@ -514,8 +516,6 @@ function animate() {
       trees.updatePositions(seaLevel);
       boulders.updatePositions(seaLevel);
     }
-    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
-    chairlifts.update(dt);
     snow.update(dt);
     clouds.update(dt);
     water.update(dt);

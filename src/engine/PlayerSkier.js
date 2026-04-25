@@ -38,6 +38,13 @@ export class PlayerSkier {
     this._prevWz = 0;
     this._prevY = 0;
 
+    // Chairlift State
+    this.state = 'skiing'; // 'skiing', 'waiting', 'riding'
+    this.targetLine = null;
+    this.chair = null;
+    this.targetStation = null;
+    this._waitingTime = 0;
+
     // Pre-allocated vectors (avoid GC micro-pauses from per-frame allocations)
     this._camPosVec = new THREE.Vector3();
     this._lookAtVec = new THREE.Vector3();
@@ -132,11 +139,20 @@ export class PlayerSkier {
     this._trailPoints = [];
   }
 
-  /** Run the physics math correctly decoupled from visual rendering */
-  update(dt) {
+  /**
+   * @param {number} dt - physics delta time
+   * @param {object} chairlifts - chairlift system instance
+   */
+  update(dt, chairlifts = null) {
     if (!this.active) return false;
 
-    // Store previous state for interpolation
+    // State Machine
+    if (this.state === 'waiting') {
+      return this._updateWaiting(dt);
+    } else if (this.state === 'riding') {
+      return this._updateRiding(dt);
+    }
+
     this._prevWx = this.wx;
     this._prevWz = this.wz;
     this._prevY = this.y;
@@ -152,6 +168,11 @@ export class PlayerSkier {
     if (gx <= 1 || gx >= res - 2 || gz <= 1 || gz >= res - 2) {
       this.active = false;
       return false;
+    }
+
+    // Chairlift Detection (only check if grounded and near a potential base)
+    if (this.grounded && chairlifts) {
+      this._checkChairliftBoarding(chairlifts);
     }
 
     // Compute terrain gradient
@@ -171,8 +192,9 @@ export class PlayerSkier {
     const maxTurnAccel = 15.0; // Scaled up slightly to compensate for floating momentum
     const turnDamping = 0.98; // Stabilize gracefully over time (drift instead of snapping!)
     
-    if (this._keys.left) this.angularVelocity += maxTurnAccel * dt;
-    if (this._keys.right) this.angularVelocity -= maxTurnAccel * dt;
+    this._steerInput = 0;
+    if (this._keys.left) { this.angularVelocity += maxTurnAccel * dt; this._steerInput = 1; }
+    if (this._keys.right) { this.angularVelocity -= maxTurnAccel * dt; this._steerInput = -1; }
     
     this.angularVelocity *= turnDamping;
     this.heading += this.angularVelocity * dt;
@@ -253,6 +275,89 @@ export class PlayerSkier {
     return true;
   }
 
+  _checkChairliftBoarding(chairlifts) {
+    for (const line of chairlifts.lines) {
+      // Check both ends - but only board if it's the LOWER station (the base)
+      const isP1Lower = line.p1.y < line.p2.y;
+      const baseStation = isP1Lower ? line.p1 : line.p2;
+      
+      const dx = baseStation.x - this.wx;
+      const dz = baseStation.z - this.wz;
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq < 4.0 * 4.0) {
+        this.state = 'waiting';
+        this.targetStation = baseStation;
+        this.targetLine = line;
+        this.vx = 0;
+        this.vz = 0;
+        this.speed = 0;
+        this._waitingTime = 0;
+        break;
+      }
+    }
+  }
+
+  _updateWaiting(dt) {
+    this._prevWx = this.wx;
+    this._prevWz = this.wz;
+    this._prevY = this.y;
+
+    // Snap to station center
+    this.wx = THREE.MathUtils.lerp(this.wx, this.targetStation.x, 0.1);
+    this.wz = THREE.MathUtils.lerp(this.wz, this.targetStation.z, 0.1);
+    this.y = this.terrain.getInterpolatedHeight(this.wx, this.wz);
+
+    this._waitingTime += dt;
+
+    // Look for a chair arriving at the base
+    const isP1Base = this.targetStation === this.targetLine.p1;
+    const targetProgress = isP1Base ? 0.0 : 0.5;
+
+    for (const chair of this.targetLine.chairs) {
+      const diff = Math.abs(chair.progress - targetProgress);
+      // If chair is close to boarding point and moving towards us
+      if (diff < 0.02) {
+        this.state = 'riding';
+        this.chair = chair;
+        break;
+      }
+    }
+    return true;
+  }
+
+  _updateRiding(dt) {
+    this._prevWx = this.wx;
+    this._prevWz = this.wz;
+    this._prevY = this.y;
+
+    // Follow the chair mesh
+    const chairPos = this.chair.mesh.position;
+    this.wx = chairPos.x;
+    this.wz = chairPos.z;
+    this.y = chairPos.y - 0.7; // Sit slightly below the chair bar
+
+    // Check for dismount
+    const isP1Base = this.targetStation === this.targetLine.p1;
+    const exitProgress = isP1Base ? 0.5 : 0.0;
+    
+    // We check if progress is close to exit point
+    const diff = Math.abs(this.chair.progress - exitProgress);
+    if (diff < 0.01 || (exitProgress === 0.0 && this.chair.progress > 0.99)) {
+       this.state = 'skiing';
+       this.chair = null;
+       this.targetLine = null;
+       this.targetStation = null;
+       this.vy = 0;
+       this.grounded = true;
+       // Give a little push forward
+       const angle = Math.atan2(this.wz - this._prevWz, this.wx - this._prevWx);
+       this.vx = Math.cos(angle) * 5;
+       this.vz = Math.sin(angle) * 5;
+    }
+    return true;
+  }
+
   /** Interpolate visual position between prev and current physics state for sub-frame accuracy */
   interpolateVisuals(alpha, dt) {
     if (!this.active || !this.mesh) return;
@@ -277,13 +382,11 @@ export class PlayerSkier {
     const targetLean = -(this.angularVelocity || 0) * 0.15;
     if (this._currentLean === undefined) this._currentLean = 0;
     this._currentLean += (targetLean - this._currentLean) * smoothFactor;
-    this.mesh.rotation.z = this._currentLean;
-
-    // Lean back/forward based on vy
+    // Visual rotation: Tilt skier based on steering + airtime
+    const lean = -this._steerInput * 0.4;
     const targetPitch = (this.cameraPitch || 0) * 0.5 - (this.vy * 0.02);
-    if (this._currentPitch === undefined) this._currentPitch = 0;
-    this._currentPitch += (targetPitch - this._currentPitch) * smoothFactor;
-    this.mesh.rotation.x = this._currentPitch;
+    this.mesh.rotation.z = lean;
+    this.mesh.rotation.x = targetPitch;
 
     // Trail
     const tp = this._trailPoints;
