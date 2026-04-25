@@ -157,11 +157,10 @@ export class PlayerSkier {
     this._prevWz = this.wz;
     this._prevY = this.y;
 
-    const gravity = 25.0; // Stronger gravity for crisp jumping / aggressive acceleration spikes
-    const baseFriction = 0.992; // Lower friction (higher retention) for a longer, silky glide
+    const gravity = 15.0; // Reduced from 25.0 to slow down down-slope acceleration
+    const baseFriction = 0.985; // Increased friction (was 0.992) for more controlled speeds
     const res = this.terrain.resolution;
     const size = this.terrain.size;
-    const cellSize = size / (res - 1);
 
     // Grid bounds check
     const { gx, gz } = this.terrain.worldToGrid(this.wx, this.wz);
@@ -181,15 +180,17 @@ export class PlayerSkier {
     const hR = this.terrain.getHeight(Math.min(res - 1, gx + sampleR), gz);
     const hU = this.terrain.getHeight(gx, Math.max(0, gz - sampleR));
     const hD = this.terrain.getHeight(gx, Math.min(res - 1, gz + sampleR));
+
+    const cellSize = size / (res - 1);
     const gradX = (hR - hL) / (2 * sampleR * cellSize);
     const gradZ = (hD - hU) / (2 * sampleR * cellSize);
 
-    // Apply gravity along slope
+    // Apply gravity acceleration
     this.vx -= gradX * gravity * dt;
     this.vz -= gradZ * gravity * dt;
 
-    // --- Weighted Steering (Carving) ---
-    const maxTurnAccel = 15.0; // Scaled up slightly to compensate for floating momentum
+    // Steering logic
+    const maxTurnAccel = 12.0; // Slightly reduced from 15.0 for smoother turning
     const turnDamping = 0.98; // Stabilize gracefully over time (drift instead of snapping!)
     
     this._steerInput = 0;
@@ -198,6 +199,13 @@ export class PlayerSkier {
     
     this.angularVelocity *= turnDamping;
     this.heading += this.angularVelocity * dt;
+
+    // Standard push force (W key)
+    if (this._keys.forward && this.grounded) {
+      const pushStrength = 1.2; // Reduced from 1.8 for more gradual starts
+      this.vx += Math.sin(this.heading) * pushStrength * dt;
+      this.vz += Math.cos(this.heading) * pushStrength * dt;
+    }
 
     // Steering force: push velocity towards the heading direction
     this.speed = Math.sqrt(this.vx * this.vx + this.vz * this.vz);
