@@ -55,10 +55,10 @@ export class PlayerSkier {
     this._trailPoints = [];
 
     // Shared materials
-    this._bodyMat = new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.6 }); // Blue jacket
+    this._bodyMat = new THREE.MeshStandardMaterial({ color: 0xff69b4, roughness: 0.6 }); // Pink jacket
     this._pantsMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.7 });
     this._skinMat = new THREE.MeshStandardMaterial({ color: 0xf4d4b0, roughness: 0.8 });
-    this._skiMat = new THREE.MeshStandardMaterial({ color: 0x00e676, roughness: 0.3, metalness: 0.2 }); // Green skis
+    this._skiMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.3, metalness: 0.2 }); // Yellow skis
 
     // Bind input handlers
     this._onKeyDown = this._onKeyDown.bind(this);
@@ -157,8 +157,8 @@ export class PlayerSkier {
     this._prevWz = this.wz;
     this._prevY = this.y;
 
-    const gravity = 15.0; // Reduced from 25.0 to slow down down-slope acceleration
-    const baseFriction = 0.985; // Increased friction (was 0.992) for more controlled speeds
+    const gravity = 22.0; // Added some gravity back (was 15.0) for better acceleration
+    const baseFriction = 0.990; // Reduced friction (was 0.985) for a longer, silkier glide
     const res = this.terrain.resolution;
     const size = this.terrain.size;
 

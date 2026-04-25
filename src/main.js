@@ -347,6 +347,7 @@ function enterSkierModeAt(wx, wz) {
   playerSkier.spawn(wx, wz);
   scene.enterSkierMode();
   isSkierMode = true;
+  brush.enabled = false;
   brush.cursorMesh.visible = false;
   ui.showSkierHUD(true);
 }
@@ -356,6 +357,7 @@ function exitSkierMode() {
   playerSkier.despawn();
   scene.exitSkierMode();
   isSkierMode = false;
+  brush.enabled = true;
   brush.cursorMesh.visible = true;
   ui.showSkierHUD(false);
 }
@@ -451,75 +453,62 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = scene.getDelta();
 
-  if (isSkierMode) {
-    physicsAccumulator += Math.min(dt, 0.05); // Cap to prevent spiral of death on tab-away
-    let alive = true;
-    while (physicsAccumulator >= PHYSICS_DT) {
-      alive = playerSkier.update(PHYSICS_DT, chairlifts);
-      physicsAccumulator -= PHYSICS_DT;
-      if (!alive) break;
+  // --- Physics & Simulation Loop ---
+  physicsAccumulator += Math.min(dt, 0.05); // Cap 
+  
+  while (physicsAccumulator >= PHYSICS_DT) {
+    if (isSkierMode) {
+      const alive = playerSkier.update(PHYSICS_DT, chairlifts);
+      if (!alive) {
+        physicsAccumulator = 0;
+        exitSkierMode();
+        break;
+      }
     }
     
-    if (!alive) {
-      physicsAccumulator = 0;
-      exitSkierMode();
-    } else {
-      // Interpolate visual position for the remaining sub-frame fraction
-      const alpha = physicsAccumulator / PHYSICS_DT;
-      playerSkier.interpolateVisuals(alpha, dt);
-
-      const cam = playerSkier.getCameraTarget(alpha);
-      scene.updateSkierCamera(cam.position, cam.lookAt, dt);
-      
-      // Update speed HUD
-      ui.updateSkierSpeed(playerSkier.speed);
-    }
-    // Simulations that run in Ski Mode
-    skiers.update(dt, seaLevel, chairlifts, isSnowing, clouds);
-    chairlifts.update(dt);
-    snow.update(dt);
-    clouds.update(dt);
-    water.update(dt);
-  } else {
-    physicsAccumulator = 0;
-
-    if (isTourMode) {
-      tourTime += dt;
-      const cx = 0; // Use 0,0 as center since PlaneGeometry is centered
-      const cz = 0;
-      
-      // Procedural orbit path
-      const radius = 160 + Math.sin(tourTime * 0.08) * 60; // Dynamic zoom
-      const angle = tourTime * 0.12; // Slow rotation
-      
-      const camX = cx + Math.cos(angle) * radius;
-      const camZ = cz + Math.sin(angle) * radius;
-      
-      let h = terrain.getInterpolatedHeight(camX, camZ);
-      if (isNaN(h)) h = seaLevel;
-      const camY = Math.max(h + 35, 90 + Math.sin(tourTime * 0.1) * 40);
-      
-      // Look towards the center area with a slight lead
-      const lookX = cx + Math.cos(angle + 0.4) * 30;
-      const lookZ = cz + Math.sin(angle + 0.4) * 30;
-      
-      // Luxurious drag (exponential smoothing) allows a drone-like take off
-      const smoothGlide = 1 - Math.pow(0.1, dt); 
-      
-      scene.camera.position.lerp(new THREE.Vector3(camX, camY, camZ), smoothGlide);
-      scene.controls.target.lerp(new THREE.Vector3(lookX, seaLevel + 5, lookZ), smoothGlide);
-      scene.camera.lookAt(scene.controls.target); 
-    }
-
-    const modified = brush.update(seaLevel);
-    if (modified) {
-      trees.updatePositions(seaLevel);
-      boulders.updatePositions(seaLevel);
-    }
-    snow.update(dt);
-    clouds.update(dt);
-    water.update(dt);
+    // Simulations must run inside the physics step to stay perfectly synchronized
+    skiers.update(PHYSICS_DT, seaLevel, chairlifts, isSnowing, clouds);
+    chairlifts.update(PHYSICS_DT);
+    
+    physicsAccumulator -= PHYSICS_DT;
   }
+
+  // --- Visuals & Camera ---
+  if (isSkierMode) {
+    const alpha = physicsAccumulator / PHYSICS_DT;
+    playerSkier.interpolateVisuals(alpha, dt);
+    const cam = playerSkier.getCameraTarget(alpha);
+    scene.updateSkierCamera(cam.position, cam.lookAt, dt);
+    ui.updateSkierSpeed(playerSkier.speed);
+  } else if (isTourMode) {
+    tourTime += dt;
+    const cx = 0; 
+    const cz = 0;
+    const radius = 160 + Math.sin(tourTime * 0.08) * 60; 
+    const angle = tourTime * 0.12; 
+    const camX = cx + Math.cos(angle) * radius;
+    const camZ = cz + Math.sin(angle) * radius;
+    let h = terrain.getInterpolatedHeight(camX, camZ);
+    if (isNaN(h)) h = seaLevel;
+    const camY = Math.max(h + 35, 90 + Math.sin(tourTime * 0.1) * 40);
+    const lookX = cx + Math.cos(angle + 0.4) * 30;
+    const lookZ = cz + Math.sin(angle + 0.4) * 30;
+    const smoothGlide = 1 - Math.pow(0.1, dt); 
+    scene.camera.position.lerp(new THREE.Vector3(camX, camY, camZ), smoothGlide);
+    scene.controls.target.lerp(new THREE.Vector3(lookX, seaLevel + 5, lookZ), smoothGlide);
+    scene.camera.lookAt(scene.controls.target); 
+  }
+
+  const modified = brush.update(seaLevel);
+  if (modified) {
+    trees.updatePositions(seaLevel);
+    boulders.updatePositions(seaLevel);
+  }
+
+  // Visual-only updates (don't need perfect physics sync)
+  snow.update(dt);
+  clouds.update(dt);
+  water.update(dt);
 
   scene.render();
 }

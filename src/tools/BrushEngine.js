@@ -16,6 +16,7 @@ export class BrushEngine {
     this.strength = 0.6;
     this.painting = false;
     this._isStart = false;
+    this.enabled = true; // Visibility and interaction flag
 
     // Brush cursor ring
     this.cursorMesh = this._buildCursor();
@@ -70,7 +71,7 @@ export class BrushEngine {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObject(this.terrain.mesh);
 
-    if (hits.length > 0) {
+    if (hits.length > 0 && this.enabled) {
       const pt = hits[0].point;
       this.intersectionPoint = pt;
       this.cursorMesh.visible = true;
@@ -99,7 +100,7 @@ export class BrushEngine {
 
 
     // Apply tool
-    if (this.painting && this.tool && this.intersectionPoint) {
+    if (this.enabled && this.painting && this.tool && this.intersectionPoint) {
       if (this.tool.isBrush) {
         const { gx, gz } = this.terrain.worldToGrid(
           this.intersectionPoint.x,
