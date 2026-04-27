@@ -127,7 +127,6 @@ const ui = new UI({
     }
   },
   onToggleSkierMode() { toggleSkierMode(); },
-  onSkierFogChange(v) { scene.setSkierFog(v); },
   onUndo() { doUndo(); },
   onRedo() { doRedo(); },
   onReset() { doReset(); },

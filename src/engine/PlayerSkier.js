@@ -205,7 +205,7 @@ export class PlayerSkier {
     this.vz -= gradZ * gravity * dt;
 
     // Steering logic
-    const maxTurnAccel = 14.0; // Responsive turning for quick carves
+    const maxTurnAccel = 16.0; // Strong edge bite for carving across the slope
     const turnDamping = 0.97; // Balanced damping — responsive but not twitchy
     
     this._steerInput = 0;
@@ -243,7 +243,7 @@ export class PlayerSkier {
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      const steerStrength = Math.max(0.5, 3.0 - (this.speed * 0.05)); // Responsive carving
+      const steerStrength = Math.max(0.8, 4.0 - (this.speed * 0.05)); // Strong edge grip for cross-slope carving
       
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;

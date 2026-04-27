@@ -116,13 +116,6 @@ export class SceneManager {
     // Save current state for restoration
     this._savedCamPos = this.camera.position.clone();
     this._savedTarget = this.controls.target.clone();
-    this._savedFar = this.camera.far;
-    this._savedFogDensity = this.scene.fog.density;
-
-    // Optimization: reduce draw distance & thicken fog to mask it
-    this.camera.far = 800; // Even shorter draw distance for thicker fog
-    this.camera.updateProjectionMatrix();
-    this.scene.fog.density = this._skierFogDensity || 0.007; // Much thicker fog during skiing
 
     // Shadow Optimization: Shrink shadow frustum and center on player
     if (this.sun) {
@@ -142,14 +135,7 @@ export class SceneManager {
     this._skierMode = false;
     this._currentLookAt = null;
     
-    // Restore settings
-    if (this._savedFar !== undefined) {
-      this.camera.far = this._savedFar;
-      this.camera.updateProjectionMatrix();
-    }
-    if (this._savedFogDensity !== undefined) {
-      this.scene.fog.density = this._savedFogDensity;
-    }
+
 
     // Restore shadow frustum
     if (this.sun) {
@@ -209,18 +195,7 @@ export class SceneManager {
     return !!this._skierMode;
   }
 
-  setSkierFog(density) {
-    this._skierFogDensity = density;
-    if (this._skierMode) {
-      this.scene.fog.density = density;
-      // Actual Performance Fix: Fog is just a pixel color effect. 
-      // To get real GPU performance, we must cull geometry that is hidden by the fog!
-      // Must be at least 30 to not clip the chase camera!
-      const cullDistance = Math.max(30, Math.min(2.0 / density, 2500)); 
-      this.camera.far = cullDistance;
-      this.camera.updateProjectionMatrix();
-    }
-  }
+
 
   _buildSky() {
     const skyGeo = new THREE.SphereGeometry(700, 32, 32);

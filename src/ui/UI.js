@@ -1,8 +1,8 @@
 import { TOOLS } from '../tools/tools.js';
 
 export class UI {
-  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange, onToggleTour }) {
-    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onSkierFogChange, onToggleTour };
+  constructor({ onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onToggleTour }) {
+    this.callbacks = { onToolChange, onBrushRadius, onBrushStrength, onSeaLevel, onBaseElevation, onUndo, onRedo, onReset, onSave, onLoad, onTreeDensity, onToggleWireframe, onToggleSnow, onToggleClouds, onToggleSkierMode, onToggleTour };
     this.activeToolKey = 'raise';
     this._build();
     this._bindKeys();
@@ -222,38 +222,7 @@ export class UI {
     `;
     document.body.appendChild(this._skierHud);
 
-    // Fog & Performance HUD (Standalone to bypass layout traps)
-    this._fogHud = document.createElement('div');
-    this._fogHud.id = 'skier-fog-container';
-    this._fogHud.style.display = 'none';
-    this._fogHud.style.position = 'fixed'; // fixed to the viewport top right
-    this._fogHud.style.top = '20px';
-    this._fogHud.style.right = '20px';
-    this._fogHud.style.textAlign = 'right';
-    this._fogHud.style.background = 'rgba(0,0,0,0.5)';
-    this._fogHud.style.padding = '12px';
-    this._fogHud.style.borderRadius = '8px';
-    this._fogHud.style.zIndex = '999999';
-    this._fogHud.innerHTML = `
-        <label for="skier-fog" style="display: block; font-size: 0.8rem; color: #fff; margin-bottom: 5px; font-weight: bold;">Performance (Fog)</label>
-        <input type="range" id="skier-fog" min="0" max="100" step="1" value="70" style="width: 150px; accent-color: #60a5fa; cursor: pointer;">
-        <div style="font-size: 0.65rem; color: #ccc; margin-top: 4px;">Low GPU — High GPU</div>
-    `;
-    document.body.appendChild(this._fogHud);
-    
-    // Bind the new fog slider
-    const fogSlider = document.getElementById('skier-fog');
-    if (fogSlider) {
-      fogSlider.addEventListener('input', (e) => {
-        // High GPU (100) = Thin Fog (0.001)
-        // Low GPU (0) = Thick Fog (0.1)
-        const t = parseFloat(e.target.value) / 100.0;
-        const maxFog = 0.1; // Reduced from 0.2 to a more playable "thick" level
-        const minFog = 0.001;
-        const density = minFog + (1.0 - t) * (maxFog - minFog);
-        if (this.callbacks.onSkierFogChange) this.callbacks.onSkierFogChange(density);
-      });
-    }
+
 
     sidebar.appendChild(this._divider());
 
@@ -467,9 +436,7 @@ export class UI {
     if (this._skierHud) {
       this._skierHud.style.display = show ? 'flex' : 'none';
     }
-    if (this._fogHud) {
-      this._fogHud.style.display = show ? 'block' : 'none';
-    }
+
     // Hide sidebar and topbar during ski mode
     const sidebar = document.getElementById('sidebar');
     const topbar = document.getElementById('topbar');
