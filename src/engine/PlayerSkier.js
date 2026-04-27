@@ -172,8 +172,8 @@ export class PlayerSkier {
     this._prevWz = this.wz;
     this._prevY = this.y;
 
-    const gravity = 26.0; // Higher gravity for faster acceleration on slopes
-    const baseFriction = 0.993; // Lower friction for faster, silkier glide
+    const gravity = 22.0;
+    const baseFriction = 0.990;
     const res = this.terrain.resolution;
     const size = this.terrain.size;
 
@@ -214,6 +214,22 @@ export class PlayerSkier {
     
     this.angularVelocity *= turnDamping;
     this.heading += this.angularVelocity * dt;
+
+    // Downhill alignment: gently rotate heading toward the fall line when not steering.
+    // This prevents the skier from getting stuck sliding sideways on slopes.
+    if (!this._keys.left && !this._keys.right) {
+      const gradMag = Math.sqrt(gradX * gradX + gradZ * gradZ);
+      if (gradMag > 0.01) {
+        // Fall line = steepest downhill direction
+        const fallHeading = Math.atan2(-gradX, -gradZ);
+        let fallDiff = fallHeading - this.heading;
+        while (fallDiff < -Math.PI) fallDiff += Math.PI * 2;
+        while (fallDiff > Math.PI) fallDiff -= Math.PI * 2;
+        // Stronger pull on steeper slopes, gentle on flats
+        const alignStrength = Math.min(gradMag * 3.0, 1.5);
+        this.heading += fallDiff * alignStrength * dt;
+      }
+    }
 
     // Standard push force (W key)
     if (this._keys.forward && this.grounded) {
