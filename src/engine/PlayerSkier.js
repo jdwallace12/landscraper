@@ -206,13 +206,16 @@ export class PlayerSkier {
 
     // Steering logic
     const maxTurnAccel = 16.0; // Strong edge bite for carving across the slope
-    const turnDamping = 0.97; // Balanced damping — responsive but not twitchy
+    const turnDamping = 0.94; // Higher damping to prevent spin-outs
+    const maxAngularVel = 2.5; // Cap rotation speed to prevent full spins
     
     this._steerInput = 0;
     if (this._keys.left) { this.angularVelocity += maxTurnAccel * dt; this._steerInput = 1; }
     if (this._keys.right) { this.angularVelocity -= maxTurnAccel * dt; this._steerInput = -1; }
     
     this.angularVelocity *= turnDamping;
+    // Clamp angular velocity so the skier can't spin around
+    this.angularVelocity = Math.max(-maxAngularVel, Math.min(maxAngularVel, this.angularVelocity));
     this.heading += this.angularVelocity * dt;
 
     // Downhill alignment: gently rotate heading toward the fall line when not steering.
