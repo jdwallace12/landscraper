@@ -205,8 +205,8 @@ export class PlayerSkier {
     this.vz -= gradZ * gravity * dt;
 
     // Steering logic
-    const maxTurnAccel = 10.0; // Gentler turn initiation
-    const turnDamping = 0.96; // Slightly more damping for smoother arc transitions
+    const maxTurnAccel = 14.0; // Responsive turning for quick carves
+    const turnDamping = 0.97; // Balanced damping — responsive but not twitchy
     
     this._steerInput = 0;
     if (this._keys.left) { this.angularVelocity += maxTurnAccel * dt; this._steerInput = 1; }
@@ -217,7 +217,7 @@ export class PlayerSkier {
 
     // Standard push force (W key)
     if (this._keys.forward && this.grounded) {
-      const pushStrength = 1.2; // Reduced from 1.8 for more gradual starts
+      const pushStrength = 1.5;
       this.vx += Math.sin(this.heading) * pushStrength * dt;
       this.vz += Math.cos(this.heading) * pushStrength * dt;
     }
@@ -227,7 +227,7 @@ export class PlayerSkier {
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      const steerStrength = Math.max(0.3, 1.8 - (this.speed * 0.04)); // Gentler carving, more drift
+      const steerStrength = Math.max(0.5, 3.0 - (this.speed * 0.05)); // Responsive carving
       
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
@@ -456,19 +456,19 @@ export class PlayerSkier {
     this._lastCamTrackX = x;
     this._lastCamTrackZ = z;
 
-    // Exponential smoothing on the movement delta — very sluggish, cinematic
-    const moveSmoothFactor = 0.02;
+    // Smoothed movement tracking — responsive enough to feel alive, smooth enough to not jitter
+    const moveSmoothFactor = 0.06;
     this._smoothTravelX += (dx - this._smoothTravelX) * moveSmoothFactor;
     this._smoothTravelZ += (dz - this._smoothTravelZ) * moveSmoothFactor;
 
-    // Only update camera heading when there's meaningful smoothed movement
+    // Update camera heading based on smoothed travel direction
     const travelMag = Math.sqrt(this._smoothTravelX * this._smoothTravelX + this._smoothTravelZ * this._smoothTravelZ);
-    if (travelMag > 0.001) {
+    if (travelMag > 0.0005) {
       const travelHeading = Math.atan2(this._smoothTravelX, this._smoothTravelZ);
       let diff = travelHeading - this.cameraHeading;
       while (diff < -Math.PI) diff += Math.PI * 2;
       while (diff > Math.PI) diff -= Math.PI * 2;
-      this.cameraHeading += diff * 0.03; // Very lazy rotation
+      this.cameraHeading += diff * 0.035; // Smooth tracking — stable on turns, follows forward
     }
 
     const camX = x - Math.sin(this.cameraHeading) * camDist;
