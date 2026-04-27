@@ -122,6 +122,21 @@ export class PlayerSkier {
     this.active = false;
     this._keys = { left: false, right: false, lookUp: false, lookDown: false, forward: false, brake: false };
     this.cameraPitch = 0;
+
+    // Reset chairlift state so re-entering doesn't resume a ride
+    this.state = 'skiing';
+    this.chair = null;
+    this.targetLine = null;
+    this.targetStation = null;
+    this._waitingTime = 0;
+
+    // Reset camera tracking state
+    this.cameraHeading = undefined;
+    this._smoothCamY = undefined;
+    this._smoothTravelX = undefined;
+    this._smoothTravelZ = undefined;
+    this._lastCamTrackX = undefined;
+    this._lastCamTrackZ = undefined;
     
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
@@ -157,8 +172,8 @@ export class PlayerSkier {
     this._prevWz = this.wz;
     this._prevY = this.y;
 
-    const gravity = 22.0; // Added some gravity back (was 15.0) for better acceleration
-    const baseFriction = 0.990; // Reduced friction (was 0.985) for a longer, silkier glide
+    const gravity = 26.0; // Higher gravity for faster acceleration on slopes
+    const baseFriction = 0.993; // Lower friction for faster, silkier glide
     const res = this.terrain.resolution;
     const size = this.terrain.size;
 
@@ -427,8 +442,8 @@ export class PlayerSkier {
     const z = this._prevWz + (this.wz - this._prevWz) * alpha;
     const h = this._prevY + (this.y - this._prevY) * alpha;
     
-    const camDist = 18;  // Wider, further-back camera
-    const camHeight = 9 + this.cameraPitch * 5; // Higher default for wider view
+    const camDist = 14;  // Slightly tighter follow camera
+    const camHeight = 7 + this.cameraPitch * 5; // Balanced height
 
     // Camera tracks smoothed POSITION movement, not velocity or heading.
     // This makes it immune to sudden changes from pushing/turning keys.
