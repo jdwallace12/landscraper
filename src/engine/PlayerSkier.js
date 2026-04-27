@@ -190,8 +190,8 @@ export class PlayerSkier {
     this.vz -= gradZ * gravity * dt;
 
     // Steering logic
-    const maxTurnAccel = 12.0; // Slightly reduced from 15.0 for smoother turning
-    const turnDamping = 0.98; // Stabilize gracefully over time (drift instead of snapping!)
+    const maxTurnAccel = 10.0; // Gentler turn initiation
+    const turnDamping = 0.96; // Slightly more damping for smoother arc transitions
     
     this._steerInput = 0;
     if (this._keys.left) { this.angularVelocity += maxTurnAccel * dt; this._steerInput = 1; }
@@ -212,7 +212,7 @@ export class PlayerSkier {
     if (this.speed > 0.1) {
       const desiredX = Math.sin(this.heading) * this.speed;
       const desiredZ = Math.cos(this.heading) * this.speed;
-      const steerStrength = Math.max(0.5, 2.5 - (this.speed * 0.05)); // Less aggressive snap, more drift!
+      const steerStrength = Math.max(0.3, 1.8 - (this.speed * 0.04)); // Gentler carving, more drift
       
       this.vx += (desiredX - this.vx) * steerStrength * dt;
       this.vz += (desiredZ - this.vz) * steerStrength * dt;
@@ -427,31 +427,52 @@ export class PlayerSkier {
     const z = this._prevWz + (this.wz - this._prevWz) * alpha;
     const h = this._prevY + (this.y - this._prevY) * alpha;
     
-    const camDist = 12;
-    const camHeight = 6 + this.cameraPitch * 5; 
+    const camDist = 18;  // Wider, further-back camera
+    const camHeight = 9 + this.cameraPitch * 5; // Higher default for wider view
 
-    // Use a heavily smoothed camera heading so it doesn't whip around when the skier carves
+    // Camera tracks smoothed POSITION movement, not velocity or heading.
+    // This makes it immune to sudden changes from pushing/turning keys.
     if (this.cameraHeading === undefined) this.cameraHeading = this.heading;
-    
-    // Smoothly track the skier's heading over time
-    let diff = this.heading - this.cameraHeading;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    this.cameraHeading += diff * 0.05; // Extremely slow, smooth tracking (almost locked to mountain gravity path)
+    if (this._smoothTravelX === undefined) { this._smoothTravelX = 0; this._smoothTravelZ = 0; }
+
+    // Accumulate actual position movement into a heavily smoothed travel direction
+    const dx = x - (this._lastCamTrackX || x);
+    const dz = z - (this._lastCamTrackZ || z);
+    this._lastCamTrackX = x;
+    this._lastCamTrackZ = z;
+
+    // Exponential smoothing on the movement delta — very sluggish, cinematic
+    const moveSmoothFactor = 0.02;
+    this._smoothTravelX += (dx - this._smoothTravelX) * moveSmoothFactor;
+    this._smoothTravelZ += (dz - this._smoothTravelZ) * moveSmoothFactor;
+
+    // Only update camera heading when there's meaningful smoothed movement
+    const travelMag = Math.sqrt(this._smoothTravelX * this._smoothTravelX + this._smoothTravelZ * this._smoothTravelZ);
+    if (travelMag > 0.001) {
+      const travelHeading = Math.atan2(this._smoothTravelX, this._smoothTravelZ);
+      let diff = travelHeading - this.cameraHeading;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      this.cameraHeading += diff * 0.03; // Very lazy rotation
+    }
 
     const camX = x - Math.sin(this.cameraHeading) * camDist;
     const camZ = z - Math.cos(this.cameraHeading) * camDist;
     let camY = h + camHeight;
 
     const terrainHAtCam = this.terrain.getInterpolatedHeight(camX, camZ);
-    const minHeightAboveGround = 2.5;
+    const minHeightAboveGround = 3.0;
     if (camY < terrainHAtCam + minHeightAboveGround) {
       camY = terrainHAtCam + minHeightAboveGround;
     }
 
-    const lookY = h + 1.2 + this.cameraPitch * 8;
+    // Smooth vertical camera position to prevent Y-axis jumpiness
+    if (this._smoothCamY === undefined) this._smoothCamY = camY;
+    this._smoothCamY += (camY - this._smoothCamY) * 0.03;
 
-    this._camPosVec.set(camX, camY, camZ);
+    const lookY = h + 1.5 + this.cameraPitch * 8;
+
+    this._camPosVec.set(camX, this._smoothCamY, camZ);
     this._lookAtVec.set(x, lookY, z);
     return { position: this._camPosVec, lookAt: this._lookAtVec };
   }
