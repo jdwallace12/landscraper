@@ -180,6 +180,9 @@ const ui = new UI({
     const skierKeyMap = { 'up': 'forward', 'down': 'brake', 'left': 'left', 'right': 'right', 'jump': 'jump', 'parachute': 'paraglide' };
     if (playerSkier._keys && skierKeyMap[dir]) {
       playerSkier._keys[skierKeyMap[dir]] = active;
+      if (dir === 'parachute' && active && playerSkier.toggleParachute) {
+        playerSkier.toggleParachute();
+      }
     }
     if (mobileMovement[dir] !== undefined) {
       mobileMovement[dir] = active;

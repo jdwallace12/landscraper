@@ -151,6 +151,11 @@ export class PlayerSkier {
     this.mesh.position.set(wx, h + 0.15, wz);
     this.group.add(this.mesh);
 
+    // Build Parachute attached directly to skier group container (stays aloft during tricks)
+    this._parachute = this._buildParachute();
+    this._parachute.position.set(wx, h + 0.15, wz);
+    this.group.add(this._parachute);
+
     // Determine initial heading: face downhill using gradient
     const res = this.terrain.resolution;
     const size = this.terrain.size;
@@ -192,9 +197,14 @@ export class PlayerSkier {
   /** Remove the player skier and clean up */
   despawn() {
     this.active = false;
-    this._keys = { left: false, right: false, lookUp: false, lookDown: false, forward: false, brake: false, jump: false, paraglide: false };
+    this._keys = { left: false, right: false, lookUp: false, lookDown: false, forward: false, brake: false, jump: false, paraglide: false, grab: false };
     this.paragliding = false;
     this.cameraPitch = 0;
+    this.airSpinYaw = 0;
+    this.airSpinPitch = 0;
+    this.airGrabName = null;
+    this.airGrabTime = 0;
+    this.airTime = 0;
 
     // Reset chairlift state so re-entering doesn't resume a ride
     this.state = 'skiing';
@@ -235,6 +245,11 @@ export class PlayerSkier {
       this.group.remove(this.mesh);
       this.mesh.traverse(c => { if (c.geometry) c.geometry.dispose(); });
       this.mesh = null;
+    }
+    if (this._parachute) {
+      this.group.remove(this._parachute);
+      this._parachute.traverse(c => { if (c.geometry) c.geometry.dispose(); });
+      this._parachute = null;
     }
     if (this._leftTrail) {
       this.group.remove(this._leftTrail);
@@ -631,20 +646,8 @@ export class PlayerSkier {
       }
     } else {
       // Air physics
-      
-      const nearLift = this.state === 'riding' || this.state === 'waiting' || (chairlifts && this._isNearChairlift(this.wx, this.wz, chairlifts, 30));
-      if (nearLift) {
+      if (this.state === 'riding' || this.state === 'waiting') {
         this.paragliding = false;
-      } else {
-        // Deploy parachute if commanded and high enough
-        if (this._keys.paraglide && (this.y - terrainH > 2.0)) {
-          this.paragliding = true;
-        }
-        
-        // Cut parachute if command released
-        if (!this._keys.paraglide) {
-          this.paragliding = false;
-        }
       }
 
       if (this.paragliding) {
@@ -704,6 +707,44 @@ export class PlayerSkier {
           this.vx += (desiredX - this.vx) * 4.0 * dt;
           this.vz += (desiredZ - this.vz) * 4.0 * dt;
         }
+
+        // Aerial Tricks while Paragliding (Freestyle Speedriding / Acro Flight)
+        this.airTime = (this.airTime || 0) + dt;
+
+        const spinSpeed = 7.5;
+        const flipSpeed = 6.2;
+
+        if (this._keys.grab) {
+          if (this._keys.left)  this.airSpinYaw = (this.airSpinYaw || 0) + spinSpeed * dt;
+          if (this._keys.right) this.airSpinYaw = (this.airSpinYaw || 0) - spinSpeed * dt;
+          if (this._keys.forward || this._keys.lookUp) this.airSpinPitch = (this.airSpinPitch || 0) + flipSpeed * dt;
+          if (this._keys.brake || this._keys.lookDown) this.airSpinPitch = (this.airSpinPitch || 0) - flipSpeed * dt;
+
+          if (this._keys.left) {
+            this.airGrabName = 'MUTE';
+          } else if (this._keys.right) {
+            this.airGrabName = 'SAFETY';
+          } else if (this._keys.forward || this._keys.lookUp) {
+            this.airGrabName = 'TAIL';
+          } else if (this._keys.brake || this._keys.lookDown) {
+            this.airGrabName = 'JAPAN';
+          } else {
+            this.airGrabName = 'METHOD';
+          }
+          this.airGrabTime = (this.airGrabTime || 0) + dt;
+        } else {
+          // Smoothly realign skier under canopy when not holding grab
+          if (this.airSpinYaw) {
+            this.airSpinYaw *= Math.pow(0.01, dt);
+            if (Math.abs(this.airSpinYaw) < 0.01) this.airSpinYaw = 0;
+          }
+          if (this.airSpinPitch) {
+            this.airSpinPitch *= Math.pow(0.01, dt);
+            if (Math.abs(this.airSpinPitch) < 0.01) this.airSpinPitch = 0;
+          }
+          this.airGrabName = null;
+          this.airGrabTime = 0;
+        }
       } else {
         // Normal falling physics & Aerial Tricks
         this.vy -= gravity * dt;
@@ -734,6 +775,9 @@ export class PlayerSkier {
             this.airGrabName = 'METHOD';
           }
           this.airGrabTime = (this.airGrabTime || 0) + dt;
+        } else {
+          this.airGrabName = null;
+          this.airGrabTime = 0;
         }
       }
 
@@ -1014,7 +1058,7 @@ export class PlayerSkier {
       targetPitch += 0.4 * this._climbWeight; // Lean forward into the slope
     }
 
-    if (!this.grounded && !this.paragliding) {
+    if (!this.grounded) {
       this.mesh.rotation.y = this.heading + (this.airSpinYaw || 0);
       this.mesh.rotation.x = targetPitch + (this.airSpinPitch || 0);
       this.mesh.rotation.z = lean;
@@ -1116,9 +1160,11 @@ export class PlayerSkier {
     if (this._parachute) {
       this._parachute.visible = this.paragliding;
       if (this.paragliding) {
-        // Smoothly swing the parachute to prevent visual jitter
+        this._parachute.position.set(x, y + 0.15 - (this._kneeCompression || 0) * 0.5, z);
+        // Smoothly orient the canopy toward flight heading with aerodynamic sway
         const targetRotZ = -lean * 0.5;
         const targetRotX = -targetPitch * 0.5 - 0.2;
+        this._parachute.rotation.y = this.heading;
         this._parachute.rotation.z += (targetRotZ - this._parachute.rotation.z) * smoothFactor;
         this._parachute.rotation.x += (targetRotX - this._parachute.rotation.x) * smoothFactor;
       }
@@ -1311,6 +1357,21 @@ export class PlayerSkier {
     return { position: this._camPosVec, lookAt: this._lookAtVec };
   }
 
+  /** Toggle parachute flight state or launch from ground */
+  toggleParachute() {
+    if (this.state === 'riding' || this.state === 'waiting') return;
+
+    if (this.grounded) {
+      // Direct parachute launch from the snow/ground
+      this.grounded = false;
+      this.vy = Math.max(this.vy, 5.0);
+      this.paragliding = true;
+    } else {
+      // Toggle parachute state in mid-air
+      this.paragliding = !this.paragliding;
+    }
+  }
+
   // ---- Input handlers ----
   _onKeyDown(e) {
     if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
@@ -1320,7 +1381,10 @@ export class PlayerSkier {
       case 'ArrowUp':    case 'w': case 'W': e.preventDefault(); this._keys.forward = true; this._keys.lookUp = true; break;
       case 'ArrowDown':  case 's': case 'S': e.preventDefault(); this._keys.brake = true; this._keys.lookDown = true; break;
       case 'Shift':      case 'z': case 'Z': case 'c': case 'C': e.preventDefault(); this._keys.grab = true; break;
-      case 'x': case 'X':  this._keys.paraglide = true; break;
+      case 'x': case 'X':
+        this._keys.paraglide = true;
+        this.toggleParachute();
+        break;
       case ' ':            e.preventDefault(); this._keys.jump = true; break;
     }
   }
@@ -1638,7 +1702,12 @@ export class PlayerSkier {
     group.add(rightPole);
     this._rightPole = rightPole;
 
-    // Parachute
+    group.scale.setScalar(0.8); // Slightly larger than AI skiers
+    return group;
+  }
+
+  // ---- Standalone Parachute builder (attached directly to skier container) ----
+  _buildParachute() {
     const chuteGroup = new THREE.Group();
     const chuteMat = new THREE.MeshStandardMaterial({ color: 0xef233c, roughness: 0.8, side: THREE.DoubleSide });
     const chuteMesh = new THREE.Mesh(
@@ -1669,11 +1738,8 @@ export class PlayerSkier {
     }
     
     chuteGroup.visible = false;
-    this._parachute = chuteGroup;
-    group.add(chuteGroup);
-
-    group.scale.setScalar(0.8); // Slightly larger than AI skiers
-    return group;
+    chuteGroup.scale.setScalar(0.8);
+    return chuteGroup;
   }
   setTrailsVisible(visible) {
     this._trailsVisible = visible;
